@@ -37,6 +37,9 @@
       "@theia/terminal/lib/*": [
         "packages/terminal/src/*"
       ],
+      "@theia/terminal-search/lib/*": [
+        "packages/terminal-search/src/*"
+      ],
       "@theia/languages/lib/*": [
         "packages/languages/src/*"
       ],
