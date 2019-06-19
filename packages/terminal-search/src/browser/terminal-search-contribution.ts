@@ -40,9 +40,8 @@ export namespace TerminalSearchCommands {
 @injectable()
 export class TerminalSearchFrontendContribution implements CommandContribution, KeybindingContribution {
 
-    constructor(
-        @inject(ApplicationShell) protected readonly shell: ApplicationShell,
-    ) { }
+    @inject(ApplicationShell)
+    protected readonly shell: ApplicationShell;
 
     @inject(TerminalSearchWidgetFactory)
     protected terminalSearchWidgetFactory: TerminalSearchWidgetFactory;
