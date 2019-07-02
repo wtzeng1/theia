@@ -22,6 +22,7 @@ import { Terminal } from 'xterm';
 import * as ReactDOM from 'react-dom';
 import { findNext, findPrevious } from 'xterm/lib/addons/search/search';
 import { ISearchOptions } from 'xterm/lib/addons/search/Interfaces';
+import { Key } from '@theia/core/lib/browser';
 
 export const TerminalSearchWidgetFactory = Symbol('TerminalSearchWidgetFactory');
 export type TerminalSearchWidgetFactory = (terminal: Terminal, node: Element, terminalWdgId: string) => TerminalSearchWidget;
@@ -37,7 +38,7 @@ export class TerminalSearchWidget extends ReactWidget {
 
     private searchInput: HTMLInputElement | null;
     private searchBox: HTMLDivElement | null;
-    private searcOptions: ISearchOptions = {};
+    private searchOptions: ISearchOptions = {};
 
     @inject(Terminal)
     protected terminal: Terminal;
@@ -75,7 +76,7 @@ export class TerminalSearchWidget extends ReactWidget {
                     type='text'
                     placeholder='Find'
                     ref={ip => this.searchInput = ip}
-                    onKeyUp={() => this.search()}
+                    onKeyUp={event => this.search(event)}
                     onFocus={() => this.onSearchInputFocus()}
                     onBlur={() => this.onSearchInputBlur()}
                 />
@@ -109,15 +110,15 @@ export class TerminalSearchWidget extends ReactWidget {
         let enabled: boolean;
         switch (optionName) {
             case TerminalSearchOption.CaseSensitiv: {
-                this.searcOptions.caseSensitive = enabled = !this.searcOptions.caseSensitive;
+                this.searchOptions.caseSensitive = enabled = !this.searchOptions.caseSensitive;
                 break;
             }
             case TerminalSearchOption.WholeWord: {
-                this.searcOptions.wholeWord = enabled = !this.searcOptions.wholeWord;
+                this.searchOptions.wholeWord = enabled = !this.searchOptions.wholeWord;
                 break;
             }
             case TerminalSearchOption.RegExp: {
-                this.searcOptions.regex = enabled = !this.searcOptions.regex;
+                this.searchOptions.regex = enabled = !this.searchOptions.regex;
                 break;
             }
             default: throw new Error('Unknown search option!');
@@ -132,21 +133,29 @@ export class TerminalSearchWidget extends ReactWidget {
         this.search();
     }
 
-    search() {
+    search(event?: React.KeyboardEvent) {
+        if (event && event.shiftKey && event.keyCode === Key.ENTER.keyCode) {
+            this.findPrevious();
+            return;
+        }
+        if (event && event.keyCode === Key.ENTER.keyCode) {
+            this.findNext();
+            return;
+        }
         this.findNext(true);
     }
 
     protected findNext(incremental?: boolean): void {
         if (this.searchInput) {
             const text = this.searchInput.value;
-            findNext(this.terminal, text, { ...this.searcOptions, incremental });
+            findNext(this.terminal, text, { ...this.searchOptions, incremental });
         }
     }
 
     protected findPrevious(): void {
         if (this.searchInput) {
             const text = this.searchInput.value;
-            findPrevious(this.terminal, text, { ...this.searcOptions, incremental: false });
+            findPrevious(this.terminal, text, { ...this.searchOptions, incremental: false });
         }
     }
 
