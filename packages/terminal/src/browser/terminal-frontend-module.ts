@@ -33,6 +33,9 @@ import { URLMatcher, LocalhostMatcher } from './terminal-linkmatcher';
 import { TerminalContribution } from './terminal-contribution';
 import { TerminalLinkmatcherFiles } from './terminal-linkmatcher-files';
 import { TerminalLinkmatcherDiffPre, TerminalLinkmatcherDiffPost } from './terminal-linkmatcher-diff';
+import { TerminalSearchDisableContext } from './search/terminal-search-keybinding-context';
+import { TerminalSearchWidgetFactory, TerminalSearchWidget } from './search/terminal-search-widget';
+import { Terminal } from 'xterm';
 
 import '../../src/browser/terminal.css';
 import 'xterm/lib/xterm.css';
@@ -40,6 +43,7 @@ import 'xterm/lib/xterm.css';
 export default new ContainerModule(bind => {
     bindTerminalPreferences(bind);
     bind(KeybindingContext).to(TerminalActiveContext).inSingletonScope();
+    bind(KeybindingContext).to(TerminalSearchDisableContext).inSingletonScope();
 
     bind(TerminalWidget).to(TerminalWidgetImpl).inTransientScope();
     bind(TerminalWatcher).toSelf().inSingletonScope();
@@ -64,6 +68,22 @@ export default new ContainerModule(bind => {
             return child.get(TerminalWidget);
         }
     }));
+
+    bind(TerminalSearchWidgetFactory).toDynamicValue(ctx => (terminal: Terminal, node: Element, terminalWdgId: string) => {
+        if (ctx.container.isBoundNamed(TerminalSearchWidget, terminalWdgId)) {
+            return ctx.container.getNamed(TerminalSearchWidget, terminalWdgId);
+        }
+
+        const container = new Container({ defaultScope: 'Singleton' });
+        container.bind(Terminal).toConstantValue(terminal);
+        container.bind(Element).toConstantValue(node);
+        container.bind(TerminalSearchWidget).toSelf().inSingletonScope();
+
+        const widget = container.get(TerminalSearchWidget);
+        ctx.container.bind(TerminalSearchWidget).toConstantValue(widget).whenTargetNamed(terminalWdgId);
+
+        return widget;
+    });
 
     bind(TerminalFrontendContribution).toSelf().inSingletonScope();
     bind(TerminalService).toService(TerminalFrontendContribution);

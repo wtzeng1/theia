@@ -49,7 +49,6 @@
     "@theia/search-in-workspace": "^0.7.0",
     "@theia/task": "^0.7.0",
     "@theia/terminal": "^0.7.0",
-    "@theia/terminal-search": "^0.7.0",
     "@theia/textmate-grammars": "^0.7.0",
     "@theia/tslint": "^0.7.0",
     "@theia/typehierarchy": "^0.7.0",

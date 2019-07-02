@@ -32,7 +32,7 @@ import {
 } from '@theia/core/lib/browser';
 import { TabBarToolbarContribution, TabBarToolbarRegistry } from '@theia/core/lib/browser/shell/tab-bar-toolbar';
 import { WidgetManager } from '@theia/core/lib/browser';
-import { TERMINAL_WIDGET_FACTORY_ID, TerminalWidgetFactoryOptions } from './terminal-widget-impl';
+import { TERMINAL_WIDGET_FACTORY_ID, TerminalWidgetFactoryOptions, TerminalWidgetImpl } from './terminal-widget-impl';
 import { TerminalKeybindingContexts } from './terminal-keybinding-contexts';
 import { TerminalService } from './base/terminal-service';
 import { TerminalWidgetOptions, TerminalWidget } from './base/terminal-widget';
@@ -42,6 +42,8 @@ import URI from '@theia/core/lib/common/uri';
 import { MAIN_MENU_BAR } from '@theia/core';
 import { WorkspaceService } from '@theia/workspace/lib/browser';
 import { ContextKeyService } from '@theia/core/lib/browser/context-key-service';
+import { TerminalSearchKeybindingContext } from './search/terminal-search-keybinding-context';
+import { TerminalSearchWidgetFactory } from './search/terminal-search-widget';
 
 export namespace TerminalMenus {
     export const TERMINAL = [...MAIN_MENU_BAR, '7_terminal'];
@@ -79,6 +81,17 @@ export namespace TerminalCommands {
         category: TERMINAL_CATEGORY,
         label: 'Split Terminal'
     };
+    const TERMINAL_SEARCH_CATEGORY = 'TerminalSearch';
+    export const TERMINAL_FIND_TEXT: Command = {
+        id: 'terminal:find',
+        category: TERMINAL_SEARCH_CATEGORY,
+        label: 'Find'
+    };
+    export const TERMINAL_FIND_TEXT_CANCEL: Command = {
+        id: 'terminal:find:cancel',
+        category: TERMINAL_SEARCH_CATEGORY,
+        label: 'Hide find widget'
+    };
 }
 
 @injectable()
@@ -108,6 +121,9 @@ export class TerminalFrontendContribution implements TerminalService, CommandCon
 
     @inject(ContextKeyService)
     protected readonly contextKeyService: ContextKeyService;
+
+    @inject(TerminalSearchWidgetFactory)
+    protected terminalSearchWidgetFactory: TerminalSearchWidgetFactory;
 
     @postConstruct()
     protected init(): void {
@@ -188,6 +204,29 @@ export class TerminalFrontendContribution implements TerminalService, CommandCon
                 this.activateTerminal(termWidget);
             }
         }));
+
+        commands.registerCommand(TerminalCommands.TERMINAL_FIND_TEXT);
+        commands.registerHandler(TerminalCommands.TERMINAL_FIND_TEXT.id, {
+            isEnabled: () => this.shell.activeWidget instanceof TerminalWidgetImpl,
+            execute: () => {
+                const termWidget = (this.shell.activeWidget as TerminalWidgetImpl);
+                const searchTextWidget = this.terminalSearchWidgetFactory(termWidget.getTerminal(), termWidget.node, termWidget.id);
+                searchTextWidget.show();
+                searchTextWidget.focus();
+                termWidget.onTerminalDidClose(() => {
+                    searchTextWidget.dispose();
+                });
+            }
+        });
+        commands.registerCommand(TerminalCommands.TERMINAL_FIND_TEXT_CANCEL);
+        commands.registerHandler(TerminalCommands.TERMINAL_FIND_TEXT_CANCEL.id, {
+            isEnabled: () => this.shell.activeWidget instanceof TerminalWidgetImpl,
+            execute: () => {
+                const termWidget = (this.shell.activeWidget as TerminalWidgetImpl);
+                const searchTextWidget = this.terminalSearchWidgetFactory(termWidget.getTerminal(), termWidget.node, termWidget.id);
+                searchTextWidget.hide();
+            }
+        });
     }
 
     registerMenus(menus: MenuModelRegistry): void {
@@ -229,6 +268,17 @@ export class TerminalFrontendContribution implements TerminalService, CommandCon
             command: TerminalCommands.TERMINAL_CLEAR.id,
             keybinding: 'ctrlcmd+k',
             context: TerminalKeybindingContexts.terminalActive
+        });
+        keybindings.registerKeybinding({
+            command: TerminalCommands.TERMINAL_FIND_TEXT.id,
+            keybinding: 'ctrlcmd+f',
+            context: TerminalKeybindingContexts.terminalActive
+        });
+
+        keybindings.registerKeybinding({
+            command: TerminalCommands.TERMINAL_FIND_TEXT_CANCEL.id,
+            keybinding: 'esc',
+            context: TerminalSearchKeybindingContext.disableSearch
         });
 
         /* Register passthrough keybindings for combinations recognized by

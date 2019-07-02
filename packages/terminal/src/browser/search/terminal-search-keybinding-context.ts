@@ -17,7 +17,7 @@
 import { KeybindingContext, ApplicationShell } from '@theia/core/lib/browser';
 import { injectable, inject } from 'inversify';
 import { TerminalSearchWidgetFactory } from './terminal-search-widget';
-import { TerminalWidgetImpl } from '@theia/terminal/lib/browser/terminal-widget-impl';
+import { TerminalWidgetImpl } from '../terminal-widget-impl';
 
 export namespace TerminalSearchKeybindingContext {
     export const disableSearch = 'hideSearch';
