@@ -17,7 +17,7 @@
 import { ContainerModule, Container } from 'inversify';
 import { CommandContribution, MenuContribution } from '@theia/core/lib/common';
 import { bindContributionProvider } from '@theia/core';
-import { KeybindingContribution, WebSocketConnectionProvider, WidgetFactory, KeybindingContext } from '@theia/core/lib/browser';
+import { KeybindingContribution, WebSocketConnectionProvider, WidgetFactory, KeybindingContext, QuickOpenContribution } from '@theia/core/lib/browser';
 import { TabBarToolbarContribution } from '@theia/core/lib/browser/shell/tab-bar-toolbar';
 import { TerminalFrontendContribution } from './terminal-frontend-contribution';
 import { TerminalWidgetImpl, TERMINAL_WIDGET_FACTORY_ID } from './terminal-widget-impl';
@@ -36,6 +36,7 @@ import { TerminalLinkmatcherDiffPre, TerminalLinkmatcherDiffPost } from './termi
 import { TerminalSearchDisableContext } from './search/terminal-search-keybinding-context';
 import { TerminalSearchWidgetFactory, TerminalSearchWidget } from './search/terminal-search-widget';
 import { Terminal } from 'xterm';
+import { TerminalQuickOpenService, TerminalQuickOpenContribution } from './terminal-quick-open-service';
 
 import '../../src/browser/terminal.css';
 import 'xterm/lib/xterm.css';
@@ -84,6 +85,13 @@ export default new ContainerModule(bind => {
 
         return widget;
     });
+
+    bind(TerminalQuickOpenService).toSelf().inSingletonScope();
+
+    bind(TerminalQuickOpenContribution).toSelf().inSingletonScope();
+    for (const identifier of [CommandContribution, QuickOpenContribution]) {
+        bind(identifier).toService(TerminalQuickOpenContribution);
+    }
 
     bind(TerminalFrontendContribution).toSelf().inSingletonScope();
     bind(TerminalService).toService(TerminalFrontendContribution);

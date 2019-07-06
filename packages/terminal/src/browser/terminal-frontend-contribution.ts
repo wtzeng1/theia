@@ -92,6 +92,14 @@ export namespace TerminalCommands {
         category: TERMINAL_SEARCH_CATEGORY,
         label: 'Hide find widget'
     };
+    /**
+     * Command that displays all terminals that are currently opened
+     */
+    export const SHOW_ALL_OPENED_TERMINALS: Command = {
+        id: 'workbench.action.showAllTerminals',
+        category: 'View',
+        label: 'Show All Opened Terminals'
+    };
 }
 
 @injectable()
