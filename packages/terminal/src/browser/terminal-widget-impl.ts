@@ -146,7 +146,7 @@ export class TerminalWidgetImpl extends TerminalWidget implements StatefulWidget
                 foreground: changedProps.foreground,
                 background: changedProps.background,
                 cursor: changedProps.foreground,
-                selection: cssProps.selection
+                selection: changedProps.selection
             });
         }));
         this.attachCustomKeyEventHandler();
