@@ -264,7 +264,7 @@ export class TerminalWidgetImpl extends TerminalWidget implements StatefulWidget
 
         const foreground = lookup(htmlElementProps, '--theia-ui-font-color1');
         const background = lookup(htmlElementProps, '--theia-layout-color0');
-        const selection = lookup(htmlElementProps, '--theia-transparent-accent-color2');
+        const selection = lookup(htmlElementProps, '--theia-terminal-selection-background-color');
 
         /* xterm.js expects #XXX of #XXXXXX for colors.  */
         const colorRe = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;

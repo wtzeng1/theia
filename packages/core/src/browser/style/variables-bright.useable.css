@@ -256,4 +256,7 @@ is not optimized for dense, information rich UIs.
   --theia-ansi-cyan-background-color: darkcyan;
   --theia-ansi-white-background-color: #BDBDBD;
 
+  /* Terminal */
+  --theia-terminal-selection-background-color: #00000040;
+
 }
