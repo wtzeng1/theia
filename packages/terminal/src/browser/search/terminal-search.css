@@ -38,7 +38,7 @@
 }
 
 .option-enabled {
-    border: var(--theia-border-width) var(--theia-accent-color3) solid;
+    border: var(--theia-border-width) var(--theia-accent-color2) solid;
 }
 
 .whole-word {
@@ -88,6 +88,14 @@
 .find-terminal-widget button {
     background-color: rgb(0, 0, 0, 0);
     color: var(--theia-ui-font-color1);
+}
+
+.find-terminal-widget button:focus {
+    border: var(--theia-border-width) var(--theia-accent-color3) solid;
+}
+
+.search-elem:focus {
+    border: var(--theia-border-width) var(--theia-accent-color3) solid;
 }
 
 .search-elem.close {

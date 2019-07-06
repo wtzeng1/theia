@@ -103,7 +103,7 @@ export class TerminalSearchWidget extends ReactWidget {
     }
 
     protected renderSearchOption(style: string, optionName: string, title: string): React.ReactNode {
-        return <span title={title} className={style} onClick={event => this.onOptionClicked(event, optionName)}></span>;
+        return <div title={title} tabIndex={0} className={style} onClick={event => this.onOptionClicked(event, optionName)}></div>;
     }
 
     private onOptionClicked(event: React.MouseEvent<HTMLSpanElement>, optionName: string) {
