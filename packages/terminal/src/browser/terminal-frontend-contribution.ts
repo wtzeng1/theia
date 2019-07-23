@@ -44,6 +44,7 @@ import { WorkspaceService } from '@theia/workspace/lib/browser';
 import { ContextKeyService } from '@theia/core/lib/browser/context-key-service';
 import { TerminalSearchKeybindingContext } from './search/terminal-search-keybinding-context';
 import { TerminalSearchWidgetFactory } from './search/terminal-search-widget';
+import { ThemeService } from '@theia/core/lib/browser/theming';
 
 export namespace TerminalMenus {
     export const TERMINAL = [...MAIN_MENU_BAR, '7_terminal'];
@@ -101,6 +102,22 @@ export namespace TerminalCommands {
         label: 'Show All Opened Terminals'
     };
 }
+
+const darkCss = require('../../src/browser/style/terminal-dark.useable.css');
+const lightCss = require('../../src/browser/style/terminal-bright.useable.css');
+
+function updateTheme(): void {
+    const theme = ThemeService.get().getCurrentTheme().id;
+    if (theme === 'dark') {
+        lightCss.unuse();
+        darkCss.use();
+    } else if (theme === 'light') {
+        darkCss.unuse();
+        lightCss.use();
+    }
+}
+updateTheme();
+ThemeService.get().onThemeChange(() => updateTheme());
 
 @injectable()
 export class TerminalFrontendContribution implements TerminalService, CommandContribution, MenuContribution, KeybindingContribution, TabBarToolbarContribution {

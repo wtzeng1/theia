@@ -38,7 +38,7 @@ import { TerminalSearchWidgetFactory, TerminalSearchWidget } from './search/term
 import { Terminal } from 'xterm';
 import { TerminalQuickOpenService, TerminalQuickOpenContribution } from './terminal-quick-open-service';
 
-import '../../src/browser/terminal.css';
+import '../../src/browser/style/terminal.css';
 import 'xterm/lib/xterm.css';
 
 export default new ContainerModule(bind => {
