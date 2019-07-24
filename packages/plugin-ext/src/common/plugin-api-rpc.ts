@@ -1207,7 +1207,7 @@ export interface StorageExt {
 
 export interface DebugExt {
     $onSessionCustomEvent(sessionId: string, event: string, body?: any): void;
-    $breakpointsDidChange(all: Breakpoint[], added: Breakpoint[], removed: Breakpoint[], changed: Breakpoint[]): void;
+    $breakpointsDidChange(added: Breakpoint[], removed: string[], changed: Breakpoint[]): void;
     $sessionDidCreate(sessionId: string): void;
     $sessionDidDestroy(sessionId: string): void;
     $sessionDidChange(sessionId: string | undefined): void;
@@ -1227,7 +1227,7 @@ export interface DebugMain {
     $registerDebuggerContribution(description: DebuggerDescription): Promise<void>;
     $unregisterDebuggerConfiguration(debugType: string): Promise<void>;
     $addBreakpoints(breakpoints: Breakpoint[]): Promise<void>;
-    $removeBreakpoints(breakpoints: Breakpoint[]): Promise<void>;
+    $removeBreakpoints(breakpoints: string[]): Promise<void>;
     $startDebugging(folder: theia.WorkspaceFolder | undefined, nameOrConfiguration: string | theia.DebugConfiguration): Promise<boolean>;
     $customRequest(sessionId: string, command: string, args?: any): Promise<DebugProtocol.Response>;
 }
