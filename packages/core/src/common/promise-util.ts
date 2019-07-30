@@ -27,3 +27,105 @@ export class Deferred<T> {
         this.reject = reject;
     });
 }
+
+export class AsyncOperationQueue {
+
+    // tslint:disable-next-line:no-any
+    protected lastCall: Promise<any> = Promise.resolve();
+    protected callCount: number = 0;
+    protected maxSize?: number;
+
+    constructor(options: AsyncOperationQueue.Options = {}) {
+        if (typeof options.maxSize === 'number') {
+            this.maxSize = options.maxSize;
+        }
+    }
+
+    run<T>(operation: () => Promise<T>): AsyncOperationQueue.Handle<T> {
+        if (this.maxSize && this.callCount >= this.maxSize) {
+            throw new Error('Operation queue is full.');
+        } else {
+            this.callCount++;
+        }
+        let cancellationReason: Error;
+        const promise = this.lastCall.then(async () => {
+            try {
+                if (cancellationReason) {
+                    throw cancellationReason;
+                }
+                return await operation();
+            } finally {
+                this.callCount--;
+            }
+        });
+        this.lastCall = promise.catch(console.error);
+        return {
+            promise,
+            cancel(reason) {
+                cancellationReason = reason || new Error('disposed');
+            },
+        };
+    }
+
+    atomic() {
+        const self = this;
+        // tslint:disable-next-line:no-any
+        return function (target: any, propertyKey: string, descriptor: PropertyDescriptor) {
+            if (typeof descriptor.value !== 'function') {
+                throw new Error('AsyncOperationQueue.atomic() can only decorate functions');
+            }
+            const method = descriptor.value as Function;
+            // tslint:disable-next-line:no-any
+            descriptor.value = async function (this: any, ...args: any[]) {
+                return self.run(() => method.apply(this, args)).promise;
+            };
+        };
+    }
+
+}
+export namespace AsyncOperationQueue {
+    export interface Options {
+        maxSize?: number;
+    }
+    export interface Handle<T> {
+        promise: Promise<T>;
+        cancel(reason?: Error): void;
+    }
+}
+
+/**
+ * Decorator "debouncing" calls to the same method returning a promise.
+ * Makes the function "atomic", as in it won't run twice concurrently.
+ * Queue is per instance.
+ */
+export function atomic(options: AtomicOptions = {}) {
+    // tslint:disable-next-line:no-any
+    return function (target: any, propertyKey: string, descriptor: PropertyDescriptor) {
+        if (typeof descriptor.value !== 'function') {
+            throw new Error('@atomic(options) can only decorate a function.');
+        }
+        const scope: AtomicScope = options.scope || DefaultAtomicScope;
+        const method: Function = descriptor.value;
+        // tslint:disable-next-line:no-any
+        descriptor.value = async function (this: any, ...args: any[]) {
+            const queue = getScopedAtomicQueue(scope, this, { maxSize: options.maxConcurrentCalls });
+            return queue.run(() => method.apply(this, args)).promise;
+        };
+    };
+}
+const AtomicQueueMap = Symbol('AtomicQueueMap');
+const DefaultAtomicScope = Symbol('DefaultAtomicScope');
+type AtomicScope = string | number | Symbol;
+interface AtomicOptions {
+    maxConcurrentCalls?: number;
+    scope?: AtomicScope;
+}
+// tslint:disable-next-line:no-any
+function getScopedAtomicQueue(scope: AtomicScope, object: any, options: AsyncOperationQueue.Options): AsyncOperationQueue {
+    const map: Map<AtomicScope, AsyncOperationQueue> = object[AtomicQueueMap] || (object[AtomicQueueMap] = new Map());
+    let queue = map.get(scope);
+    if (!queue) {
+        map.set(scope, queue = new AsyncOperationQueue(options));
+    }
+    return queue;
+}
