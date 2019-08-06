@@ -25,7 +25,7 @@ import { TerminalWidget, TerminalWidgetOptions } from './base/terminal-widget';
 import { ITerminalServer, terminalPath } from '../common/terminal-protocol';
 import { TerminalWatcher } from '../common/terminal-watcher';
 import { IShellTerminalServer, shellTerminalPath, ShellTerminalServerProxy } from '../common/shell-terminal-protocol';
-import { TerminalActiveContext } from './terminal-keybinding-contexts';
+import { TerminalActiveContext, TerminalHideSearchContext } from './terminal-keybinding-contexts';
 import { createCommonBindings } from '../common/terminal-common-module';
 import { TerminalService } from './base/terminal-service';
 import { bindTerminalPreferences } from './terminal-preferences';
@@ -33,7 +33,6 @@ import { URLMatcher, LocalhostMatcher } from './terminal-linkmatcher';
 import { TerminalContribution } from './terminal-contribution';
 import { TerminalLinkmatcherFiles } from './terminal-linkmatcher-files';
 import { TerminalLinkmatcherDiffPre, TerminalLinkmatcherDiffPost } from './terminal-linkmatcher-diff';
-import { TerminalSearchDisableContext } from './search/terminal-search-keybinding-context';
 import { TerminalSearchWidgetFactory, TerminalSearchWidget } from './search/terminal-search-widget';
 import { Terminal } from 'xterm';
 import { TerminalQuickOpenService, TerminalQuickOpenContribution } from './terminal-quick-open-service';
@@ -44,7 +43,7 @@ import 'xterm/lib/xterm.css';
 export default new ContainerModule(bind => {
     bindTerminalPreferences(bind);
     bind(KeybindingContext).to(TerminalActiveContext).inSingletonScope();
-    bind(KeybindingContext).to(TerminalSearchDisableContext).inSingletonScope();
+    bind(KeybindingContext).to(TerminalHideSearchContext).inSingletonScope();
 
     bind(TerminalWidget).to(TerminalWidgetImpl).inTransientScope();
     bind(TerminalWatcher).toSelf().inSingletonScope();

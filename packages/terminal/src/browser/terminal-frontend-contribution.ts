@@ -42,7 +42,6 @@ import URI from '@theia/core/lib/common/uri';
 import { MAIN_MENU_BAR } from '@theia/core';
 import { WorkspaceService } from '@theia/workspace/lib/browser';
 import { ContextKeyService } from '@theia/core/lib/browser/context-key-service';
-import { TerminalSearchKeybindingContext } from './search/terminal-search-keybinding-context';
 import { TerminalSearchWidgetFactory } from './search/terminal-search-widget';
 import { ThemeService } from '@theia/core/lib/browser/theming';
 
@@ -303,7 +302,7 @@ export class TerminalFrontendContribution implements TerminalService, CommandCon
         keybindings.registerKeybinding({
             command: TerminalCommands.TERMINAL_FIND_TEXT_CANCEL.id,
             keybinding: 'esc',
-            context: TerminalSearchKeybindingContext.disableSearch
+            context: TerminalKeybindingContexts.terminalHideSearch
         });
 
         /* Register passthrough keybindings for combinations recognized by
