@@ -17,8 +17,6 @@
 import { injectable, inject } from 'inversify';
 import { KeybindingContext, ApplicationShell } from '@theia/core/lib/browser';
 import { TerminalWidget } from './base/terminal-widget';
-import { TerminalSearchWidgetFactory } from './search/terminal-search-widget';
-import { TerminalWidgetImpl } from './terminal-widget-impl';
 
 export namespace TerminalKeybindingContexts {
     export const terminalActive = 'terminalActive';
@@ -44,15 +42,11 @@ export class TerminalHideSearchContext implements KeybindingContext {
     @inject(ApplicationShell)
     protected readonly shell: ApplicationShell;
 
-    @inject(TerminalSearchWidgetFactory)
-    protected terminalSearchWidgetFactory: TerminalSearchWidgetFactory;
-
     isEnabled(): boolean {
         if (!(this.shell.activeWidget instanceof TerminalWidget)) {
             return false;
         }
-        const terminal = (this.shell.activeWidget as TerminalWidgetImpl);
-        const searchWidget = this.terminalSearchWidgetFactory(terminal.getTerminal(), terminal.node, terminal.id);
-        return searchWidget.isActivated();
+        const searchWidget = (this.shell.activeWidget as TerminalWidget).getSearchBox();
+        return searchWidget.isVisible;
     }
 }

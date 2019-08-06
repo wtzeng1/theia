@@ -19,10 +19,10 @@ import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget';
 import * as React from 'react';
 import '../../../src/browser/style/terminal-search.css';
 import { Terminal } from 'xterm';
-import * as ReactDOM from 'react-dom';
 import { findNext, findPrevious } from 'xterm/lib/addons/search/search';
 import { ISearchOptions } from 'xterm/lib/addons/search/Interfaces';
 import { Key } from '@theia/core/lib/browser';
+import { TerminalSearchBox } from '../base/terminal-search-box';
 
 export const TerminalSearchWidgetFactory = Symbol('TerminalSearchWidgetFactory');
 export type TerminalSearchWidgetFactory = (terminal: Terminal, node: Element, terminalWdgId: string) => TerminalSearchWidget;
@@ -34,7 +34,7 @@ export enum TerminalSearchOption {
 }
 
 @injectable()
-export class TerminalSearchWidget extends ReactWidget {
+export class TerminalSearchWidget extends ReactWidget implements TerminalSearchBox {
 
     private searchInput: HTMLInputElement | null;
     private searchBox: HTMLDivElement | null;
@@ -48,13 +48,8 @@ export class TerminalSearchWidget extends ReactWidget {
 
     @postConstruct()
     protected init(): void {
-        this.hide();
         this.element.appendChild(this.node);
-        ReactDOM.render(<React.Fragment>{this.render()}</React.Fragment>, this.node);
-    }
-
-    isActivated(): boolean {
-        return this.node.clientWidth > 0;
+        this.node.classList.add('find-terminal-widget-parent');
     }
 
     focus(): void {
@@ -63,12 +58,7 @@ export class TerminalSearchWidget extends ReactWidget {
         }
     }
 
-    update(): void {
-        ReactDOM.render(<React.Fragment>{this.render()}</React.Fragment>, this.node);
-    }
-
     render(): React.ReactNode {
-        this.node.classList.add('find-terminal-widget-parent');
         return <div className='find-terminal-widget'>
             <div className='search-elem-box' ref={searchBox => this.searchBox = searchBox} >
                 <input

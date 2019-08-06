@@ -32,7 +32,7 @@ import {
 } from '@theia/core/lib/browser';
 import { TabBarToolbarContribution, TabBarToolbarRegistry } from '@theia/core/lib/browser/shell/tab-bar-toolbar';
 import { WidgetManager } from '@theia/core/lib/browser';
-import { TERMINAL_WIDGET_FACTORY_ID, TerminalWidgetFactoryOptions, TerminalWidgetImpl } from './terminal-widget-impl';
+import { TERMINAL_WIDGET_FACTORY_ID, TerminalWidgetFactoryOptions } from './terminal-widget-impl';
 import { TerminalKeybindingContexts } from './terminal-keybinding-contexts';
 import { TerminalService } from './base/terminal-service';
 import { TerminalWidgetOptions, TerminalWidget } from './base/terminal-widget';
@@ -42,7 +42,6 @@ import URI from '@theia/core/lib/common/uri';
 import { MAIN_MENU_BAR } from '@theia/core';
 import { WorkspaceService } from '@theia/workspace/lib/browser';
 import { ContextKeyService } from '@theia/core/lib/browser/context-key-service';
-import { TerminalSearchWidgetFactory } from './search/terminal-search-widget';
 import { ThemeService } from '@theia/core/lib/browser/theming';
 
 export namespace TerminalMenus {
@@ -146,9 +145,6 @@ export class TerminalFrontendContribution implements TerminalService, CommandCon
     @inject(ContextKeyService)
     protected readonly contextKeyService: ContextKeyService;
 
-    @inject(TerminalSearchWidgetFactory)
-    protected terminalSearchWidgetFactory: TerminalSearchWidgetFactory;
-
     @postConstruct()
     protected init(): void {
         this.shell.currentChanged.connect(() => this.updateCurrentTerminal());
@@ -231,24 +227,21 @@ export class TerminalFrontendContribution implements TerminalService, CommandCon
 
         commands.registerCommand(TerminalCommands.TERMINAL_FIND_TEXT);
         commands.registerHandler(TerminalCommands.TERMINAL_FIND_TEXT.id, {
-            isEnabled: () => this.shell.activeWidget instanceof TerminalWidgetImpl,
+            isEnabled: () => this.shell.activeWidget instanceof TerminalWidget,
             execute: () => {
-                const termWidget = (this.shell.activeWidget as TerminalWidgetImpl);
-                const searchTextWidget = this.terminalSearchWidgetFactory(termWidget.getTerminal(), termWidget.node, termWidget.id);
-                searchTextWidget.show();
-                searchTextWidget.focus();
-                termWidget.onTerminalDidClose(() => {
-                    searchTextWidget.dispose();
-                });
+                const termWidget = (this.shell.activeWidget as TerminalWidget);
+                const terminalSearchBox = termWidget.getSearchBox();
+                terminalSearchBox.update();
+                terminalSearchBox.focus();
             }
         });
         commands.registerCommand(TerminalCommands.TERMINAL_FIND_TEXT_CANCEL);
         commands.registerHandler(TerminalCommands.TERMINAL_FIND_TEXT_CANCEL.id, {
-            isEnabled: () => this.shell.activeWidget instanceof TerminalWidgetImpl,
+            isEnabled: () => this.shell.activeWidget instanceof TerminalWidget,
             execute: () => {
-                const termWidget = (this.shell.activeWidget as TerminalWidgetImpl);
-                const searchTextWidget = this.terminalSearchWidgetFactory(termWidget.getTerminal(), termWidget.node, termWidget.id);
-                searchTextWidget.hide();
+                const termWidget = (this.shell.activeWidget as TerminalWidget);
+                const terminalSearchBox = termWidget.getSearchBox();
+                terminalSearchBox.hide(); // todo use dispose insted of hide...
             }
         });
     }
