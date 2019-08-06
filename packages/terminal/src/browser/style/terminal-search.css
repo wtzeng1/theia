@@ -14,6 +14,22 @@
  * SPDX-License-Identifier: EPL-2.0 OR GPL-2.0 WITH Classpath-exception-2.0
  ********************************************************************************/
 
+.theia-search-terminal-widget-parent {
+    color: var(--theia-ui-font-color1);
+    background: var(--theia-layout-color1);
+
+    position: absolute;
+
+    margin: 0px;
+    border: 1px solid var(--theia-layout-color1);
+    padding: 0px;
+
+    top: 1px;
+    right: 19px;
+
+    z-index: 10;
+}
+
 .search-elem-box {
     display: flex;
     margin: 0px;
@@ -53,23 +69,8 @@
     background-image: var(--theia-icon-regex);
 }
 
-.find-terminal-widget-parent {
-    color: var(--theia-ui-font-color1);
-    background: var(--theia-layout-color1);
 
-    position: absolute;
-
-    margin: 0px;
-    border: 1px solid var(--theia-layout-color1);
-    padding: 0px;
-
-    top: 1px;
-    right: 19px;
-
-    z-index: 10;
-}
-
-.find-terminal-widget-parent .find-terminal-widget {
+.theia-search-terminal-widget-parent .search-terminal-widget {
     margin: 2px;
     display: flex;
     align-items: center;
@@ -77,7 +78,7 @@
     color: var(--theia-ui-font-color1);
 }
 
-.find-terminal-widget input {
+.search-terminal-widget input {
     margin-left: 5px;
     padding: 0px;
     width: 100px;
@@ -85,12 +86,12 @@
     height: 18px;
 }
 
-.find-terminal-widget button {
+.search-terminal-widget button {
     background-color: rgb(0, 0, 0, 0);
     color: var(--theia-ui-font-color1);
 }
 
-.find-terminal-widget button:focus {
+.search-terminal-widget button:focus {
     border: var(--theia-border-width) var(--theia-accent-color3) solid;
 }
 

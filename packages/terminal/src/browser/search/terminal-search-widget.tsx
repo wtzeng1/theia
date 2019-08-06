@@ -28,7 +28,7 @@ export const TerminalSearchWidgetFactory = Symbol('TerminalSearchWidgetFactory')
 export type TerminalSearchWidgetFactory = (terminal: Terminal, node: Element, terminalWdgId: string) => TerminalSearchWidget;
 
 export enum TerminalSearchOption {
-    CaseSensitiv = 'caseSensitive',
+    CaseSensitiv = 'caseS ensitive',
     WholeWord = 'wholeWord',
     RegExp = 'regex'
 }
@@ -49,7 +49,7 @@ export class TerminalSearchWidget extends ReactWidget implements TerminalSearchB
     @postConstruct()
     protected init(): void {
         this.element.appendChild(this.node);
-        this.node.classList.add('find-terminal-widget-parent');
+        this.node.classList.add('theia-search-terminal-widget-parent');
     }
 
     focus(): void {
@@ -59,7 +59,7 @@ export class TerminalSearchWidget extends ReactWidget implements TerminalSearchB
     }
 
     render(): React.ReactNode {
-        return <div className='find-terminal-widget'>
+        return <div className='search-terminal-widget'>
             <div className='search-elem-box' ref={searchBox => this.searchBox = searchBox} >
                 <input
                     title='Find'
