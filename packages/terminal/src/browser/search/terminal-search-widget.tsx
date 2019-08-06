@@ -17,7 +17,7 @@
 import { injectable, inject, postConstruct } from 'inversify';
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget';
 import * as React from 'react';
-import '../../../src/browser/search/terminal-search.css';
+import '../../../src/browser/style/terminal-search.css';
 import { Terminal } from 'xterm';
 import * as ReactDOM from 'react-dom';
 import { findNext, findPrevious } from 'xterm/lib/addons/search/search';
