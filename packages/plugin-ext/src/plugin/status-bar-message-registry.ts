@@ -17,8 +17,8 @@ import { Disposable, StatusBarAlignment } from './types-impl';
 import { StatusBarItem } from '@theia/plugin';
 import {
     PLUGIN_RPC_CONTEXT as Ext, StatusBarMessageRegistryMain
-} from '../api/plugin-api';
-import { RPCProtocol } from '../api/rpc-protocol';
+} from '../common/plugin-api-rpc';
+import { RPCProtocol } from '../common/rpc-protocol';
 import { StatusBarItemImpl } from './status-bar/status-bar-item';
 
 /*---------------------------------------------------------------------------------------------
@@ -72,7 +72,7 @@ class StatusBarMessage {
         this._item = statusBar.createStatusBarItem(StatusBarAlignment.Left, Number.MIN_VALUE);
     }
 
-    dispose() {
+    dispose(): void {
         this._messages.length = 0;
         this._item.dispose();
     }
@@ -91,7 +91,7 @@ class StatusBarMessage {
         });
     }
 
-    private _update() {
+    private _update(): void {
         if (this._messages.length > 0) {
             this._item.text = this._messages[0].message;
             this._item.show();

@@ -17,6 +17,7 @@
     color: var(--theia-ui-font-color1);
     padding: 5px;
     box-sizing: border-box;
+    height: 100%;
 }
 
 .theia-side-panel .theia-scm {
@@ -41,31 +42,31 @@
     justify-content: space-between;
 }
 
-#theia-scmContainer .changesHeader {
+.theia-scm .changesHeader {
     font-weight: bold;
 }
 
-#theia-scmContainer .changesContainer {
+.theia-scm .changesContainer {
     margin: 5px 0;
 }
 
-#theia-scmContainer #messageInputContainer {
+.theia-scm #messageInputContainer {
     position: relative;
 }
 
-#theia-scmContainer #repositoryListContainer {
+.theia-scm #repositoryListContainer {
     display: flex;
     margin-bottom: 5px;
     flex: 1;
 }
 
-#theia-scmContainer .groups-outer-container {
+.theia-scm .groups-outer-container {
     overflow-y: auto;
     width: 100%;
     flex-grow: 1;
 }
 
-#theia-scmContainer .warn {
+.theia-scm .warn {
     background-color: var(--theia-error-color2) !important;
 }
 
@@ -102,7 +103,7 @@
     padding: 4px 4px 4px 4px;
 }
 
-.theia-scm-input-message-container textarea:placeholder-shown { 
+.theia-scm-input-message-container textarea:placeholder-shown {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -182,8 +183,8 @@
 }
 
 .theia-scm .scmItem {
-    margin: 1px 0 1px 3px;
-    padding: 2px;
+    margin: 1px 0 1px 0;
+    padding: 2px 5px 2px 5px;
     font-size: var(--theia-ui-font-size1);
     display: flex;
     justify-content: space-between;
@@ -205,7 +206,10 @@
 }
 
 .theia-scm .scmItem .status {
-    padding: 2px 4px;
+    width: 16px;
+    text-align: center;
+    padding-top: 2px;
+    padding-bottom: 2px;
     font-size: var(--theia-ui-font-size0);
 }
 .scm-change-count {

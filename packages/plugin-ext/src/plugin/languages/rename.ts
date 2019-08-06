@@ -17,10 +17,10 @@
 import URI from 'vscode-uri/lib/umd';
 import * as theia from '@theia/plugin';
 import * as Converter from '../type-converters';
-import * as model from '../../api/model';
-import { DocumentsExtImpl } from '@theia/plugin-ext/src/plugin/documents';
-import { WorkspaceEditDto } from '@theia/plugin-ext/src/common';
-import { Position } from '../../api/plugin-api';
+import * as model from '../../common/plugin-api-rpc-model';
+import { DocumentsExtImpl } from '../documents';
+import { WorkspaceEditDto } from '../../common/plugin-api-rpc';
+import { Position } from '../../common/plugin-api-rpc';
 import { Range } from '../types-impl';
 import { isObject } from '../../common/types';
 

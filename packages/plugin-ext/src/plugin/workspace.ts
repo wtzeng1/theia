@@ -29,10 +29,10 @@ import {
     WorkspaceMain,
     PLUGIN_RPC_CONTEXT as Ext,
     MainMessageType
-} from '../api/plugin-api';
+} from '../common/plugin-api-rpc';
 import { Path } from '@theia/core/lib/common/path';
-import { RPCProtocol } from '../api/rpc-protocol';
-import { WorkspaceRootsChangeEvent, FileChangeEvent, FileMoveEvent, FileWillMoveEvent } from '../api/model';
+import { RPCProtocol } from '../common/rpc-protocol';
+import { WorkspaceRootsChangeEvent, FileChangeEvent, FileMoveEvent, FileWillMoveEvent } from '../common/plugin-api-rpc-model';
 import { EditorsAndDocumentsExtImpl } from './editors-and-documents';
 import { InPluginFileSystemWatcherProxy } from './in-plugin-filesystem-watcher-proxy';
 import URI from 'vscode-uri';
@@ -197,7 +197,7 @@ export class WorkspaceExtImpl implements WorkspaceExt {
 
         const instance = this;
         return {
-            dispose() {
+            dispose(): void {
                 if (instance.documentContentProviders.delete(scheme)) {
                     instance.proxy.$unregisterTextDocumentContentProvider(scheme);
                 }
@@ -358,7 +358,7 @@ export class WorkspaceExtImpl implements WorkspaceExt {
      */
     public readonly onDidRenameFile: Event<theia.FileRenameEvent> = this.workspaceDidRenameFileEmitter.event;
 
-    $onFileRename(event: FileMoveEvent) {
+    $onFileRename(event: FileMoveEvent): void {
         this.workspaceDidRenameFileEmitter.fire(Object.freeze({ oldUri: URI.revive(event.oldUri), newUri: URI.revive(event.newUri) }));
     }
 

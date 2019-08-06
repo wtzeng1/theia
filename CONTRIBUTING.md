@@ -1,4 +1,4 @@
-# Contributing to Theia
+# Contributing to Eclipse Theia
 
 Theia is a young open-source project with a modular architecture. One of the
 goals is to make sure that we can customize and enhance any Theia application
@@ -41,6 +41,9 @@ merged and maintained as part of Theia, you should talk with the team through
 an issue. Simply choose the issue you would want to work on, and tell everyone
 that you are willing to do so and how you would approach it. The team will be
 happy to guide you and give feedback.
+
+We follow the contributing and reviewing pull request guidelines described
+[here](https://github.com/theia-ide/theia/blob/master/doc/pull-requests.md).
 
 ## Coding Guidelines
 

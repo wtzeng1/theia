@@ -119,7 +119,7 @@ export class HostedPluginManagerClient {
     protected readonly hostedPluginPreferences: HostedPluginPreferences;
 
     @postConstruct()
-    protected async init() {
+    protected async init(): Promise<void> {
         this.openNewTabAskDialog = new OpenHostedInstanceLinkDialog(this.windowService);
 
         // is needed for case when page is loaded when hosted instance is already running.
@@ -265,7 +265,7 @@ export class HostedPluginManagerClient {
         if (UriSelection.is(result)) {
             if (await this.hostedPluginServer.isPluginValid(result.uri.toString())) {
                 this.pluginLocation = result.uri;
-                this.messageService.info('Plugin folder is set to: ' + result.uri.toString());
+                this.messageService.info('Plugin folder is set to: ' + this.labelProvider.getLongName(result.uri));
             } else {
                 this.messageService.error('Specified folder does not contain valid plugin.');
             }

@@ -24,7 +24,7 @@ import { FileDownloadCommands } from '@theia/filesystem/lib/browser/download/fil
 import { CommandRegistry, MenuModelRegistry, MenuPath, isOSX, Command, DisposableCollection } from '@theia/core/lib/common';
 import { SHELL_TABBAR_CONTEXT_MENU } from '@theia/core/lib/browser';
 import { WorkspaceCommands, WorkspaceService, WorkspacePreferences } from '@theia/workspace/lib/browser';
-import { FILE_NAVIGATOR_ID, FileNavigatorWidget } from './navigator-widget';
+import { FILE_NAVIGATOR_ID, FileNavigatorWidget, EXPLORER_VIEW_CONTAINER_ID } from './navigator-widget';
 import { FileNavigatorPreferences } from './navigator-preferences';
 import { NavigatorKeybindingContexts } from './navigator-keybinding-context';
 import { FileNavigatorFilter } from './navigator-filter';
@@ -33,6 +33,7 @@ import { NavigatorContextKeyService } from './navigator-context-key-service';
 import { TabBarToolbarContribution, TabBarToolbarRegistry } from '@theia/core/lib/browser/shell/tab-bar-toolbar';
 import { FileSystemCommands } from '@theia/filesystem/lib/browser/filesystem-frontend-contribution';
 import { NavigatorDiff, NavigatorDiffCommands } from './navigator-diff';
+import { UriSelection } from '@theia/core/lib/common/selection';
 
 export namespace FileNavigatorCommands {
     export const REVEAL_IN_NAVIGATOR: Command = {
@@ -48,6 +49,9 @@ export namespace FileNavigatorCommands {
         category: 'File',
         label: 'Collapse Folders in Explorer',
         iconClass: 'collapse-all'
+    };
+    export const ADD_ROOT_FOLDER: Command = {
+        id: 'navigator.addRootFolder'
     };
 }
 
@@ -102,6 +106,7 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
         @inject(WorkspacePreferences) protected readonly workspacePreferences: WorkspacePreferences
     ) {
         super({
+            viewContainerId: EXPLORER_VIEW_CONTAINER_ID,
             widgetId: FILE_NAVIGATOR_ID,
             widgetName: 'Explorer',
             defaultWidgetOptions: {
@@ -114,7 +119,7 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
     }
 
     @postConstruct()
-    protected async init() {
+    protected async init(): Promise<void> {
         await this.fileNavigatorPreferences.ready;
         this.shell.currentChanged.connect(() => this.onCurrentWidgetChangedHandler());
 
@@ -155,6 +160,19 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
             execute: widget => this.withWidget(widget, () => this.collapseFileNavigatorTree()),
             isEnabled: widget => this.withWidget(widget, () => this.workspaceService.opened),
             isVisible: widget => this.withWidget(widget, () => this.workspaceService.opened)
+        });
+        registry.registerCommand(FileNavigatorCommands.ADD_ROOT_FOLDER, {
+            execute: (...args) => registry.executeCommand(WorkspaceCommands.ADD_FOLDER.id, ...args),
+            isEnabled: (...args) => registry.isEnabled(WorkspaceCommands.ADD_FOLDER.id, ...args),
+            isVisible: (...args) => {
+                if (!registry.isVisible(WorkspaceCommands.ADD_FOLDER.id, ...args)) {
+                    return false;
+                }
+                const navigator = this.tryGetWidget();
+                const model = navigator && navigator.model;
+                const uris = UriSelection.getUris(model && model.selectedNodes);
+                return this.workspaceService.areWorkspaceRoots(uris);
+            }
         });
 
         registry.registerCommand(NavigatorDiffCommands.COMPARE_FIRST, {
@@ -208,10 +226,16 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
         // });
 
         registry.registerMenuAction(NavigatorContextMenu.CLIPBOARD, {
-            commandId: CommonCommands.COPY.id
+            commandId: CommonCommands.COPY.id,
+            order: 'a'
         });
         registry.registerMenuAction(NavigatorContextMenu.CLIPBOARD, {
-            commandId: CommonCommands.PASTE.id
+            commandId: CommonCommands.PASTE.id,
+            order: 'b'
+        });
+        registry.registerMenuAction(NavigatorContextMenu.CLIPBOARD, {
+            commandId: FileDownloadCommands.COPY_DOWNLOAD_LINK.id,
+            order: 'z'
         });
 
         registry.registerMenuAction(NavigatorContextMenu.MODIFICATION, {
@@ -354,7 +378,8 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
         this.toDisposeAddRemoveFolderActions.dispose();
         if (this.workspacePreferences['workspace.supportMultiRootWorkspace']) {
             this.toDisposeAddRemoveFolderActions.push(registry.registerMenuAction(NavigatorContextMenu.WORKSPACE, {
-                commandId: WorkspaceCommands.ADD_FOLDER.id
+                commandId: FileNavigatorCommands.ADD_ROOT_FOLDER.id,
+                label: WorkspaceCommands.ADD_FOLDER.label!
             }));
             this.toDisposeAddRemoveFolderActions.push(registry.registerMenuAction(NavigatorContextMenu.WORKSPACE, {
                 commandId: WorkspaceCommands.REMOVE_FOLDER.id

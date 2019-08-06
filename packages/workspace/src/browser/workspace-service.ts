@@ -226,7 +226,7 @@ export class WorkspaceService implements FrontendApplicationContribution {
         return title ? `${title} — ${name}` : name;
     }
 
-    protected updateTitle() {
+    protected updateTitle(): void {
         let title: string | undefined;
         if (this._workspace) {
             const uri = new URI(this._workspace.uri);
@@ -558,6 +558,14 @@ export class WorkspaceService implements FrontendApplicationContribution {
             }
         }
         return rootUris.sort((r1, r2) => r2.toString().length - r1.toString().length)[0];
+    }
+
+    areWorkspaceRoots(uris: URI[]): boolean {
+        if (!uris.length) {
+            return false;
+        }
+        const rootUris = new Set(this.tryGetRoots().map(root => root.uri));
+        return uris.every(uri => rootUris.has(uri.toString()));
     }
 
 }

@@ -27,6 +27,7 @@ import {
     LanguageContribution,
     PluginPackageLanguageContributionConfiguration,
     LanguageConfiguration,
+    PluginTaskDefinitionContribution,
     AutoClosingPairConditional,
     AutoClosingPair,
     ViewContainer,
@@ -48,16 +49,17 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { isObject } from 'util';
 import { GrammarsReader } from './grammars-reader';
-import { CharacterPair } from '../../../api/plugin-api';
+import { CharacterPair } from '../../../common/plugin-api-rpc';
 import * as jsoncparser from 'jsonc-parser';
 import { IJSONSchema } from '@theia/core/lib/common/json-schema';
 import { deepClone } from '@theia/core/lib/common/objects';
 import { FileUri } from '@theia/core/lib/node/file-uri';
 import { PreferenceSchema, PreferenceSchemaProperties } from '@theia/core/lib/common/preferences/preference-schema';
 import { RecursivePartial } from '@theia/core/lib/common/types';
+import { ProblemMatcherContribution, ProblemPatternContribution, TaskDefinition } from '@theia/task/lib/common/task-protocol';
 
 namespace nls {
-    export function localize(key: string, _default: string) {
+    export function localize(key: string, _default: string): string {
         return _default;
     }
 }
@@ -81,7 +83,8 @@ export class TheiaPluginScanner implements PluginScanner {
 
     getModel(plugin: PluginPackage): PluginModel {
         const result: PluginModel = {
-            id: `${plugin.publisher}.${plugin.name}`,
+            // see id definition: https://github.com/microsoft/vscode/blob/15916055fe0cb9411a5f36119b3b012458fe0a1d/src/vs/platform/extensions/common/extensions.ts#L167-L169
+            id: `${plugin.publisher.toLowerCase()}.${plugin.name.toLowerCase()}`,
             name: plugin.name,
             publisher: plugin.publisher,
             version: plugin.version,
@@ -181,6 +184,18 @@ export class TheiaPluginScanner implements PluginScanner {
         if (rawPlugin.contributes!.debuggers) {
             const debuggers = this.readDebuggers(rawPlugin.contributes.debuggers!);
             contributions.debuggers = debuggers;
+        }
+
+        if (rawPlugin.contributes!.taskDefinitions) {
+            contributions.taskDefinitions = rawPlugin.contributes!.taskDefinitions!.map(definitionContribution => this.readTaskDefinition(definitionContribution));
+        }
+
+        if (rawPlugin.contributes!.problemMatchers) {
+            contributions.problemMatchers = rawPlugin.contributes!.problemMatchers as ProblemMatcherContribution[];
+        }
+
+        if (rawPlugin.contributes!.problemPatterns) {
+            contributions.problemPatterns = rawPlugin.contributes!.problemPatterns as ProblemPatternContribution[];
         }
 
         contributions.snippets = this.readSnippets(rawPlugin);
@@ -352,6 +367,16 @@ export class TheiaPluginScanner implements PluginScanner {
             && this.resolveSchemaAttributes(rawDebugger.type, rawDebugger.configurationAttributes);
 
         return result;
+    }
+
+    private readTaskDefinition(definitionContribution: PluginTaskDefinitionContribution): TaskDefinition {
+        return {
+            taskType: definitionContribution.type,
+            properties: {
+                required: definitionContribution.required,
+                all: Object.keys(definitionContribution.properties)
+            }
+        };
     }
 
     protected resolveSchemaAttributes(type: string, configurationAttributes: { [request: string]: IJSONSchema }): IJSONSchema[] {

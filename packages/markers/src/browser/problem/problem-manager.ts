@@ -24,12 +24,13 @@ import { Diagnostic } from 'vscode-languageserver-types';
 export interface ProblemStat {
     errors: number;
     warnings: number;
+    infos: number;
 }
 
 @injectable()
 export class ProblemManager extends MarkerManager<Diagnostic> {
 
-    public getKind() {
+    public getKind(): string {
         return PROBLEM_KIND;
     }
 
@@ -41,8 +42,9 @@ export class ProblemManager extends MarkerManager<Diagnostic> {
 
         const errors = allMarkers.filter(m => m.data.severity === 1).length;
         const warnings = allMarkers.filter(m => m.data.severity === 2).length;
+        const infos = allMarkers.filter(m => m.data.severity === 3).length;
 
-        return { errors, warnings };
+        return { errors, warnings, infos };
     }
 
 }

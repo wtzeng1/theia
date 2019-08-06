@@ -14,86 +14,212 @@
  * SPDX-License-Identifier: EPL-2.0 OR GPL-2.0 WITH Classpath-exception-2.0
  ********************************************************************************/
 
-import { interfaces, injectable, inject } from 'inversify';
-import { v4 } from 'uuid';
+import { interfaces, injectable, inject, postConstruct } from 'inversify';
 import { IIterator, toArray, find, some, every, map } from '@phosphor/algorithm';
 import {
     Widget, EXPANSION_TOGGLE_CLASS, COLLAPSED_CLASS, MessageLoop, Message, SplitPanel, BaseWidget,
-    addEventListener, SplitLayout, LayoutItem
+    addEventListener, SplitLayout, LayoutItem, PanelLayout, addKeyListener
 } from './widgets';
 import { Event, Emitter } from '../common/event';
 import { Deferred } from '../common/promise-util';
 import { Disposable, DisposableCollection } from '../common/disposable';
 import { CommandRegistry } from '../common/command';
-import { MenuModelRegistry, MenuPath } from '../common/menu';
-import { ApplicationShell, StatefulWidget, SplitPositionHandler, SplitPositionOptions } from './shell';
+import { MenuModelRegistry, MenuPath, MenuAction } from '../common/menu';
+import { ApplicationShell, StatefulWidget, SplitPositionHandler, SplitPositionOptions, SIDE_PANEL_TOOLBAR_CONTEXT_MENU } from './shell';
 import { MAIN_AREA_ID, BOTTOM_AREA_ID } from './shell/theia-dock-panel';
 import { FrontendApplicationStateService } from './frontend-application-state';
 import { ContextMenuRenderer, Anchor } from './context-menu-renderer';
 import { parseCssMagnitude } from './browser';
 import { WidgetManager } from './widget-manager';
+import { TabBarToolbarRegistry, TabBarToolbarFactory, TabBarToolbar } from './shell/tab-bar-toolbar';
+import { Key } from './keys';
+
+export interface ViewContainerTitleOptions {
+    label: string;
+    caption?: string;
+    iconClass?: string;
+    closeable?: boolean;
+}
+
+@injectable()
+export class ViewContainerIdentifier {
+    id: string;
+}
 
 /**
  * A view container holds an arbitrary number of widgets inside a split panel.
  * Each widget is wrapped in a _part_ that displays the widget title and toolbar
  * and allows to collapse / expand the widget content.
  */
+@injectable()
 export class ViewContainer extends BaseWidget implements StatefulWidget, ApplicationShell.TrackableWidgetProvider {
 
-    protected readonly panel: SplitPanel;
-    protected readonly attached = new Deferred<void>();
+    protected panel: SplitPanel;
+    protected attached = new Deferred<void>();
 
-    constructor(protected readonly services: ViewContainer.Services, ...inputs: { widget: Widget, options?: ViewContainer.Factory.WidgetOptions }[]) {
-        super();
-        this.id = `view-container-widget-${v4()}`;
+    protected currentPart: ViewContainerPart | undefined;
+
+    @inject(FrontendApplicationStateService)
+    protected readonly applicationStateService: FrontendApplicationStateService;
+
+    @inject(ContextMenuRenderer)
+    protected readonly contextMenuRenderer: ContextMenuRenderer;
+
+    @inject(CommandRegistry)
+    protected readonly commandRegistry: CommandRegistry;
+
+    @inject(MenuModelRegistry)
+    protected readonly menuRegistry: MenuModelRegistry;
+
+    @inject(WidgetManager)
+    protected readonly widgetManager: WidgetManager;
+
+    @inject(SplitPositionHandler)
+    protected readonly splitPositionHandler: SplitPositionHandler;
+
+    @inject(ViewContainerIdentifier)
+    readonly options: ViewContainerIdentifier;
+
+    @inject(TabBarToolbarRegistry)
+    protected readonly toolbarRegistry: TabBarToolbarRegistry;
+
+    @inject(TabBarToolbarFactory)
+    protected readonly toolbarFactory: TabBarToolbarFactory;
+
+    protected readonly onDidChangeTrackableWidgetsEmitter = new Emitter<Widget[]>();
+    readonly onDidChangeTrackableWidgets = this.onDidChangeTrackableWidgetsEmitter.event;
+
+    @postConstruct()
+    protected init(): void {
+        this.id = this.options.id;
         this.addClass('theia-view-container');
-        const layout = new ViewContainerLayout({
-            renderer: SplitPanel.defaultRenderer,
-            orientation: this.orientation,
-            spacing: 2,
-            headerSize: ViewContainerPart.HEADER_HEIGHT,
-            animationDuration: 200
-        }, services.splitPositionHandler);
-        this.panel = new SplitPanel({ layout });
-        for (const { widget, options } of inputs) {
-            this.addWidget(widget, options);
-        }
-        this.attached.promise.then(() => {
-            this.layout.setPartSizes(inputs.map(({ options }) => options ? options.weight : undefined));
+        const layout = new PanelLayout();
+        this.layout = layout;
+        this.panel = new SplitPanel({
+            layout: new ViewContainerLayout({
+                renderer: SplitPanel.defaultRenderer,
+                orientation: this.orientation,
+                spacing: 2,
+                headerSize: ViewContainerPart.HEADER_HEIGHT,
+                animationDuration: 200
+            }, this.splitPositionHandler)
         });
+        this.panel.node.tabIndex = -1;
+        layout.addWidget(this.panel);
 
-        const { commandRegistry, menuRegistry, contextMenuRenderer } = this.services;
-        commandRegistry.registerCommand({ id: this.globalHideCommandId }, {
-            execute: (anchor: Anchor) => {
-                const toHide = this.findPartForAnchor(anchor);
-                if (toHide && toHide.canHide) {
-                    toHide.hide();
-                }
-            },
-            isVisible: (anchor: Anchor) => {
-                const toHide = this.findPartForAnchor(anchor);
-                if (toHide) {
-                    return toHide.canHide && !toHide.isHidden;
-                } else {
-                    return some(this.layout.iter(), part => !part.isHidden);
-                }
-            }
-        });
-        menuRegistry.registerMenuAction([...this.contextMenuPath, '0_global'], {
-            commandId: this.globalHideCommandId,
-            label: 'Hide'
-        });
+        const { commandRegistry, menuRegistry, contextMenuRenderer } = this;
         this.toDispose.pushAll([
             addEventListener(this.node, 'contextmenu', event => {
-                if (event.button === 2 && every(this.layout.iter(), part => !!part.isHidden)) {
+                if (event.button === 2 && every(this.containerLayout.iter(), part => !!part.isHidden)) {
                     event.stopPropagation();
                     event.preventDefault();
                     contextMenuRenderer.render({ menuPath: this.contextMenuPath, anchor: event });
                 }
             }),
-            Disposable.create(() => commandRegistry.unregisterCommand(this.globalHideCommandId)),
-            Disposable.create(() => menuRegistry.unregisterMenuAction(this.globalHideCommandId))
+            commandRegistry.registerCommand({ id: this.globalHideCommandId }, {
+                execute: (anchor: Anchor) => {
+                    const toHide = this.findPartForAnchor(anchor);
+                    if (toHide && toHide.canHide) {
+                        toHide.hide();
+                    }
+                },
+                isVisible: (anchor: Anchor) => {
+                    const toHide = this.findPartForAnchor(anchor);
+                    if (toHide) {
+                        return toHide.canHide && !toHide.isHidden;
+                    } else {
+                        return some(this.containerLayout.iter(), part => !part.isHidden);
+                    }
+                }
+            }),
+            menuRegistry.registerMenuAction([...this.contextMenuPath, '0_global'], {
+                commandId: this.globalHideCommandId,
+                label: 'Hide'
+            }),
+            this.onDidChangeTrackableWidgetsEmitter
         ]);
+    }
+
+    protected readonly toDisposeOnCurrentPart = new DisposableCollection();
+
+    protected updateCurrentPart(part?: ViewContainerPart): void {
+        if (part && this.getParts().indexOf(part) !== -1) {
+            this.currentPart = part;
+        }
+        if (this.currentPart && !this.currentPart.isDisposed) {
+            return;
+        }
+        const visibleParts = this.getParts().filter(p => !p.isHidden);
+        const expandedParts = visibleParts.filter(p => !p.collapsed);
+        this.currentPart = expandedParts[0] || visibleParts[0];
+    }
+
+    protected titleOptions: ViewContainerTitleOptions | undefined;
+
+    setTitleOptions(titleOptions: ViewContainerTitleOptions | undefined): void {
+        this.titleOptions = titleOptions;
+        this.updateTitle();
+    }
+
+    protected readonly toDisposeOnUpdateTitle = new DisposableCollection();
+
+    protected updateTitle(): void {
+        this.toDisposeOnUpdateTitle.dispose();
+        this.toDispose.push(this.toDisposeOnUpdateTitle);
+        const title = this.titleOptions;
+        if (!title) {
+            return;
+        }
+        const visibleParts = this.getParts().filter(part => !part.isHidden);
+        this.title.label = title.label;
+        if (visibleParts.length === 1) {
+            const part = visibleParts[0];
+            this.toDisposeOnUpdateTitle.push(part.onTitleChanged(() => this.updateTitle()));
+            const partLabel = part.wrapped.title.label;
+            if (partLabel) {
+                this.title.label += ': ' + partLabel;
+            }
+            part.collapsed = false;
+            part.hideTitle();
+            this.toolbarRegistry.visibleItems(part.wrapped).forEach(partItem => {
+                const id = `__${this.id}_title:${partItem.id}`;
+                if ('command' in partItem) {
+                    const command = this.commandRegistry.getCommand(partItem.id);
+                    this.toDisposeOnUpdateTitle.push(this.commandRegistry.registerCommand({ id }, {
+                        execute: (arg, ...args) => arg instanceof Widget && arg.id === this.id && this.commandRegistry.executeCommand(partItem.command, part.wrapped, ...args),
+                        isEnabled: (arg, ...args) => arg instanceof Widget && arg.id === this.id && this.commandRegistry.isEnabled(partItem.command, part.wrapped, ...args),
+                        isVisible: (arg, ...args) => arg instanceof Widget && arg.id === this.id && this.commandRegistry.isVisible(partItem.command, part.wrapped, ...args),
+                        isToggled: (arg, ...args) => arg instanceof Widget && arg.id === this.id && this.commandRegistry.isToggled(partItem.command, part.wrapped, ...args),
+                    }));
+                    const tooltip = partItem.tooltip || (command && command.label);
+                    const icon = partItem.icon || (command && command.iconClass);
+                    this.toDisposeOnUpdateTitle.push(this.toolbarRegistry.registerItem({ ...partItem, id, command: id, tooltip, icon }));
+                } else {
+                    this.toDisposeOnUpdateTitle.push(this.toolbarRegistry.registerItem({
+                        ...partItem,
+                        isVisible: widget => widget.id === this.id && (!partItem.isVisible || partItem.isVisible(part.wrapped))
+                    }));
+                }
+            });
+        } else {
+            visibleParts.forEach(part => part.showTitle());
+        }
+        const caption = title.caption || title.label;
+        if (caption) {
+            this.title.caption = caption;
+            if (visibleParts.length === 1) {
+                const partCaption = visibleParts[0].wrapped.title.caption || visibleParts[0].wrapped.title.label;
+                if (partCaption) {
+                    this.title.caption += ': ' + partCaption;
+                }
+            }
+        }
+        if (title.iconClass) {
+            this.title.iconClass = title.iconClass;
+        }
+        if (title.closeable !== undefined) {
+            this.title.closable = title.closeable;
+        }
     }
 
     protected findPartForAnchor(anchor: Anchor): ViewContainerPart | undefined {
@@ -101,63 +227,99 @@ export class ViewContainer extends BaseWidget implements StatefulWidget, Applica
         if (element instanceof Element) {
             const closestPart = ViewContainerPart.closestPart(element);
             if (closestPart && closestPart.id) {
-                return find(this.layout.iter(), part => part.id === closestPart.id);
+                return find(this.containerLayout.iter(), part => part.id === closestPart.id);
             }
         }
         return undefined;
     }
 
+    protected readonly toRemoveWidgets = new Map<string, DisposableCollection>();
+
     addWidget(widget: Widget, options?: ViewContainer.Factory.WidgetOptions): Disposable {
-        if (find(this.layout.iter(), ({ wrapped }) => wrapped.id === widget.id)) {
-            return Disposable.NULL;
+        const existing = this.toRemoveWidgets.get(widget.id);
+        if (existing) {
+            return existing;
         }
-        const description = this.services.widgetManager.getDescription(widget);
+        const toRemoveWidget = new DisposableCollection();
+        this.toDispose.push(toRemoveWidget);
+        this.toRemoveWidgets.set(widget.id, toRemoveWidget);
+        toRemoveWidget.push(Disposable.create(() => this.toRemoveWidgets.delete(widget.id)));
+
+        const description = this.widgetManager.getDescription(widget);
         const partId = description ? JSON.stringify(description) : widget.id;
-        const newPart = new ViewContainerPart(widget, partId, this.id, options);
+        const newPart = new ViewContainerPart(widget, partId, this.id, this.toolbarRegistry, this.toolbarFactory, options);
         this.registerPart(newPart);
-        if (options && options.order !== undefined) {
-            const index = this.layout.widgets.findIndex(part => part.options.order === undefined || part.options.order > options.order!);
+        if (newPart.options && newPart.options.order !== undefined) {
+            const index = this.getParts().findIndex(part => part.options.order === undefined || part.options.order > newPart.options.order!);
             if (index >= 0) {
-                this.layout.insertWidget(index, newPart);
+                this.containerLayout.insertWidget(index, newPart);
             } else {
-                this.layout.addWidget(newPart);
+                this.containerLayout.addWidget(newPart);
             }
         } else {
-            this.layout.addWidget(newPart);
+            this.containerLayout.addWidget(newPart);
         }
         this.refreshMenu(newPart);
+        this.updateTitle();
+        this.updateCurrentPart();
         this.update();
-        return new DisposableCollection(
-            Disposable.create(() => this.removeWidget(widget)),
-            newPart.onCollapsed(() => this.layout.updateCollapsed(newPart, this.enableAnimation)),
+        this.fireDidChangeTrackableWidgets();
+        toRemoveWidget.pushAll([
+            newPart,
+            Disposable.create(() => {
+                this.unregisterPart(newPart);
+                if (!newPart.isDisposed) {
+                    this.containerLayout.removeWidget(newPart);
+                }
+                if (!this.isDisposed) {
+                    this.update();
+                    this.updateTitle();
+                    this.updateCurrentPart();
+                    this.fireDidChangeTrackableWidgets();
+                }
+            }),
+            newPart.onVisibilityChanged(() => {
+                this.updateTitle();
+                this.updateCurrentPart();
+            }),
+            newPart.onCollapsed(() => {
+                this.containerLayout.updateCollapsed(newPart, this.enableAnimation);
+                this.updateCurrentPart();
+            }),
             newPart.onMoveBefore(toMoveId => this.moveBefore(toMoveId, newPart.id)),
             newPart.onContextMenu(event => {
                 if (event.button === 2) {
                     event.preventDefault();
                     event.stopPropagation();
-                    const { contextMenuRenderer } = this.services;
-                    contextMenuRenderer.render({ menuPath: this.contextMenuPath, anchor: event });
+                    this.contextMenuRenderer.render({ menuPath: this.contextMenuPath, anchor: event });
                 }
-            })
-        );
+            }),
+            newPart.onTitleChanged(() => this.refreshMenu(newPart)),
+            newPart.onDidFocus(() => this.updateCurrentPart(newPart))
+        ]);
+
+        newPart.disposed.connect(() => toRemoveWidget.dispose());
+        return toRemoveWidget;
     }
 
     removeWidget(widget: Widget): boolean {
-        const part = find(this.layout.iter(), ({ wrapped }) => wrapped.id === widget.id);
-        if (!part) {
-            return false;
+        const disposable = this.toRemoveWidgets.get(widget.id);
+        if (disposable) {
+            disposable.dispose();
+            return true;
         }
-        this.unregisterPart(part);
-        this.layout.removeWidget(part);
-        this.update();
-        return true;
+        return false;
     }
 
-    getTrackableWidgets(): ViewContainerPart[] {
-        return this.layout.widgets;
+    getParts(): ViewContainerPart[] {
+        return this.containerLayout.widgets;
     }
 
-    get layout(): ViewContainerLayout {
+    getPartFor(widget: Widget): ViewContainerPart | undefined {
+        return this.getParts().find(p => p.wrapped.id === widget.id);
+    }
+
+    get containerLayout(): ViewContainerLayout {
         return this.panel.layout as ViewContainerLayout;
     }
 
@@ -166,26 +328,32 @@ export class ViewContainer extends BaseWidget implements StatefulWidget, Applica
     }
 
     protected get enableAnimation(): boolean {
-        return this.services.applicationStateService.state === 'ready';
+        return this.applicationStateService.state === 'ready';
     }
 
+    protected lastVisibleState: ViewContainer.State | undefined;
+
     storeState(): ViewContainer.State {
-        const parts = this.layout.widgets;
-        const availableSize = this.layout.getAvailableSize();
+        if (!this.isVisible && this.lastVisibleState) {
+            return this.lastVisibleState;
+        }
+        const parts = this.getParts();
+        const availableSize = this.containerLayout.getAvailableSize();
         const orientation = this.orientation;
         const partStates = parts.map(part => {
-            let size = this.layout.getPartSize(part);
+            let size = this.containerLayout.getPartSize(part);
             if (size && size > ViewContainerPart.HEADER_HEIGHT && orientation === 'vertical') {
                 size -= ViewContainerPart.HEADER_HEIGHT;
             }
             return <ViewContainerPart.State>{
+                widget: part.wrapped,
                 partId: part.partId,
                 collapsed: part.collapsed,
                 hidden: part.isHidden,
                 relativeSize: size && availableSize ? size / availableSize : undefined
             };
         });
-        return { parts: partStates };
+        return { parts: partStates, title: this.titleOptions };
     }
 
     /**
@@ -194,88 +362,99 @@ export class ViewContainer extends BaseWidget implements StatefulWidget, Applica
      * it should be restored in the specific subclass or in the widget holding the view container.
      */
     restoreState(state: ViewContainer.State): void {
-        if (state.parts) {
-            const partStates = state.parts.filter(partState => some(this.layout.iter(), p => p.partId === partState.partId));
-
-            // Reorder the parts according to the stored state
-            for (let index = 0; index < partStates.length; index++) {
-                const partState = partStates[index];
-                const currentIndex = this.layout.widgets.findIndex(p => p.partId === partState.partId);
-                if (currentIndex > index) {
-                    this.layout.moveWidget(currentIndex, index);
-                }
+        this.lastVisibleState = state;
+        this.setTitleOptions(state.title);
+        // restore widgets
+        for (const part of state.parts) {
+            if (part.widget) {
+                this.addWidget(part.widget);
             }
-
-            // Restore visibility and collapsed state
-            const parts = this.layout.widgets;
-            for (let index = 0; index < parts.length; index++) {
-                const part = parts[index];
-                const partState = partStates.find(s => part.partId === s.partId);
-                if (partState) {
-                    part.collapsed = partState.collapsed || !partState.relativeSize;
-                    if (part.canHide) {
-                        part.setHidden(partState.hidden);
-                    }
-                } else if (part.canHide) {
-                    part.hide();
-                }
-                this.refreshMenu(part);
-            }
-
-            // Restore part sizes
-            this.attached.promise.then(() => {
-                this.layout.setPartSizes(partStates.map(partState => partState.relativeSize));
-            });
         }
+        const partStates = state.parts.filter(partState => some(this.containerLayout.iter(), p => p.partId === partState.partId));
+
+        // Reorder the parts according to the stored state
+        for (let index = 0; index < partStates.length; index++) {
+            const partState = partStates[index];
+            const currentIndex = this.getParts().findIndex(p => p.partId === partState.partId);
+            if (currentIndex > index) {
+                this.containerLayout.moveWidget(currentIndex, index, this.getParts()[currentIndex]);
+            }
+        }
+
+        // Restore visibility and collapsed state
+        const parts = this.getParts();
+        for (let index = 0; index < parts.length; index++) {
+            const part = parts[index];
+            const partState = partStates.find(s => part.partId === s.partId);
+            if (partState) {
+                part.collapsed = partState.collapsed || !partState.relativeSize;
+                if (part.canHide) {
+                    part.setHidden(partState.hidden);
+                }
+            } else if (part.canHide) {
+                part.hide();
+            }
+            this.refreshMenu(part);
+        }
+
+        // Restore part sizes
+        this.attached.promise.then(() => {
+            this.containerLayout.setPartSizes(partStates.map(partState => partState.relativeSize));
+        });
     }
 
     /**
      * Register a command to toggle the visibility of the new part.
      */
     protected registerPart(toRegister: ViewContainerPart): void {
-        if (toRegister.canHide) {
-            const { commandRegistry } = this.services;
-            const commandId = this.toggleVisibilityCommandId(toRegister);
-            commandRegistry.registerCommand({ id: commandId }, {
-                execute: () => {
-                    const toHide = find(this.layout.iter(), part => part.id === toRegister.id);
-                    if (toHide) {
-                        this.toggleVisibility(toHide);
-                    }
-                },
-                isToggled: () => {
-                    const widgetToToggle = find(this.layout.iter(), part => part.id === toRegister.id);
-                    if (widgetToToggle) {
-                        return !widgetToToggle.isHidden;
-                    }
-                    return false;
+        const commandId = this.toggleVisibilityCommandId(toRegister);
+        this.commandRegistry.registerCommand({ id: commandId }, {
+            execute: () => {
+                const toHide = find(this.containerLayout.iter(), part => part.id === toRegister.id);
+                if (toHide) {
+                    this.toggleVisibility(toHide);
                 }
-            });
-        }
+            },
+            isToggled: () => {
+                if (!toRegister.canHide) {
+                    return true;
+                }
+                const widgetToToggle = find(this.containerLayout.iter(), part => part.id === toRegister.id);
+                if (widgetToToggle) {
+                    return !widgetToToggle.isHidden;
+                }
+                return false;
+            },
+            isEnabled: arg => toRegister.canHide && (!this.titleOptions || !(arg instanceof Widget) || (arg instanceof ViewContainer && arg.id === this.id)),
+            isVisible: arg => !this.titleOptions || !(arg instanceof Widget) || (arg instanceof ViewContainer && arg.id === this.id)
+        });
     }
 
     /**
      * Register a menu action to toggle the visibility of the new part.
      * The menu action is unregistered first to enable refreshing the order of menu actions.
      */
-    protected refreshMenu(part: ViewContainerPart) {
-        if (part.canHide) {
-            const { menuRegistry } = this.services;
-            const commandId = this.toggleVisibilityCommandId(part);
-            menuRegistry.unregisterMenuAction(commandId);
-            menuRegistry.registerMenuAction([...this.contextMenuPath, '1_widgets'], {
-                commandId: commandId,
-                label: part.wrapped.title.label,
-                order: this.layout.widgets.indexOf(part).toString()
-            });
+    protected refreshMenu(part: ViewContainerPart): void {
+        const commandId = this.toggleVisibilityCommandId(part);
+        this.menuRegistry.unregisterMenuAction(commandId);
+        if (!part.wrapped.title.label) {
+            return;
+        }
+        const action: MenuAction = {
+            commandId: commandId,
+            label: part.wrapped.title.label,
+            order: this.getParts().indexOf(part).toString()
+        };
+        this.menuRegistry.registerMenuAction([...this.contextMenuPath, '1_widgets'], action);
+        if (this.titleOptions) {
+            this.menuRegistry.registerMenuAction([...SIDE_PANEL_TOOLBAR_CONTEXT_MENU, 'navigation'], action);
         }
     }
 
     protected unregisterPart(part: ViewContainerPart): void {
-        const { commandRegistry, menuRegistry } = this.services;
         const commandId = this.toggleVisibilityCommandId(part);
-        commandRegistry.unregisterCommand(commandId);
-        menuRegistry.unregisterMenuAction(commandId);
+        this.commandRegistry.unregisterCommand(commandId);
+        this.menuRegistry.unregisterMenuAction(commandId);
     }
 
     protected get contextMenuPath(): MenuPath {
@@ -300,74 +479,88 @@ export class ViewContainer extends BaseWidget implements StatefulWidget, Applica
     }
 
     protected moveBefore(toMovedId: string, moveBeforeThisId: string): void {
-        const parts = this.layout.widgets;
+        const parts = this.getParts();
         const toMoveIndex = parts.findIndex(part => part.id === toMovedId);
         const moveBeforeThisIndex = parts.findIndex(part => part.id === moveBeforeThisId);
         if (toMoveIndex >= 0 && moveBeforeThisIndex >= 0) {
-            this.layout.moveWidget(toMoveIndex, moveBeforeThisIndex);
+            this.containerLayout.moveWidget(toMoveIndex, moveBeforeThisIndex, parts[toMoveIndex]);
             for (let index = Math.min(toMoveIndex, moveBeforeThisIndex); index < parts.length; index++) {
                 this.refreshMenu(parts[index]);
+                this.activate();
             }
         }
     }
 
-    protected onResize(msg: Widget.ResizeMessage): void {
-        for (const widget of [this.panel, ...this.layout.widgets]) {
-            MessageLoop.sendMessage(widget, Widget.ResizeMessage.UnknownSize);
-        }
-        super.onResize(msg);
+    getTrackableWidgets(): Widget[] {
+        return this.getParts().map(w => w.wrapped);
     }
 
-    protected onUpdateRequest(msg: Message): void {
-        for (const widget of [this.panel, ...this.layout.widgets]) {
-            widget.update();
+    protected fireDidChangeTrackableWidgets(): void {
+        this.onDidChangeTrackableWidgetsEmitter.fire(this.getTrackableWidgets());
+    }
+
+    activateWidget(id: string): Widget | undefined {
+        const part = this.revealPart(id);
+        if (!part) {
+            return undefined;
         }
-        super.onUpdateRequest(msg);
+        this.updateCurrentPart(part);
+        return part.wrapped;
+    }
+
+    revealWidget(id: string): Widget | undefined {
+        const part = this.revealPart(id);
+        return part && part.wrapped;
+    }
+
+    protected revealPart(id: string): ViewContainerPart | undefined {
+        const part = this.getParts().find(p => p.wrapped.id === id);
+        if (!part) {
+            return undefined;
+        }
+        part.setHidden(false);
+        part.collapsed = false;
+        return part;
     }
 
     protected onActivateRequest(msg: Message): void {
         super.onActivateRequest(msg);
-        this.panel.activate();
+        if (this.currentPart) {
+            this.currentPart.activate();
+        } else {
+            this.panel.node.focus();
+        }
     }
 
     protected onAfterAttach(msg: Message): void {
         const orientation = this.orientation;
-        this.layout.orientation = orientation;
+        this.containerLayout.orientation = orientation;
         if (orientation === 'horizontal') {
-            for (const part of this.layout.widgets) {
+            for (const part of this.getParts()) {
                 part.collapsed = false;
             }
         }
-        if (!this.panel.isAttached) {
-            Widget.attach(this.panel, this.node);
-        }
         super.onAfterAttach(msg);
         requestAnimationFrame(() => this.attached.resolve());
+    }
+
+    protected onBeforeHide(msg: Message): void {
+        super.onBeforeHide(msg);
+        this.lastVisibleState = this.storeState();
+    }
+
+    protected onAfterShow(msg: Message): void {
+        super.onAfterShow(msg);
+        this.lastVisibleState = undefined;
     }
 
 }
 
 export namespace ViewContainer {
 
-    @injectable()
-    export class Services {
-        @inject(FrontendApplicationStateService)
-        readonly applicationStateService: FrontendApplicationStateService;
-        @inject(ContextMenuRenderer)
-        readonly contextMenuRenderer: ContextMenuRenderer;
-        @inject(CommandRegistry)
-        readonly commandRegistry: CommandRegistry;
-        @inject(MenuModelRegistry)
-        readonly menuRegistry: MenuModelRegistry;
-        @inject(WidgetManager)
-        readonly widgetManager: WidgetManager;
-        @inject(SplitPositionHandler)
-        readonly splitPositionHandler: SplitPositionHandler;
-    }
-
     export const Factory = Symbol('ViewContainerFactory');
     export interface Factory {
-        (...widgets: Factory.WidgetDescriptor[]): ViewContainer;
+        (options: ViewContainerIdentifier): ViewContainer;
     }
 
     export namespace Factory {
@@ -388,6 +581,7 @@ export namespace ViewContainer {
     }
 
     export interface State {
+        title?: ViewContainerTitleOptions;
         parts: ViewContainerPart.State[]
     }
 
@@ -410,6 +604,12 @@ export class ViewContainerPart extends BaseWidget {
     protected readonly collapsedEmitter = new Emitter<boolean>();
     protected readonly moveBeforeEmitter = new Emitter<string>();
     protected readonly contextMenuEmitter = new Emitter<MouseEvent>();
+    protected readonly onVisibilityChangedEmitter = new Emitter<boolean>();
+    readonly onVisibilityChanged = this.onVisibilityChangedEmitter.event;
+    protected readonly onTitleChangedEmitter = new Emitter<void>();
+    readonly onTitleChanged = this.onTitleChangedEmitter.event;
+    protected readonly onDidFocusEmitter = new Emitter<this>();
+    readonly onDidFocus = this.onDidFocusEmitter.event;
 
     protected _collapsed: boolean;
     /**
@@ -422,31 +622,48 @@ export class ViewContainerPart extends BaseWidget {
     uncollapsedSize: number | undefined;
     animatedSize: number | undefined;
 
+    protected readonly toNoDisposeWrapped: Disposable;
+
     constructor(
-        public readonly wrapped: Widget,
-        public readonly partId: string,
+        readonly wrapped: Widget,
+        readonly partId: string,
         viewContainerId: string,
-        public readonly options: ViewContainer.Factory.WidgetOptions = {}
+        protected readonly toolbarRegistry: TabBarToolbarRegistry,
+        protected readonly toolbarFactory: TabBarToolbarFactory,
+        readonly options: ViewContainer.Factory.WidgetOptions = {}
     ) {
         super();
+        wrapped.parent = this;
+        wrapped.disposed.connect(() => this.dispose());
         this.id = `${viewContainerId}--${wrapped.id}`;
         this.addClass('part');
+
+        const fireTitleChanged = () => this.onTitleChangedEmitter.fire(undefined);
+        this.wrapped.title.changed.connect(fireTitleChanged);
+        this.toDispose.push(Disposable.create(() => this.wrapped.title.changed.disconnect(fireTitleChanged)));
+
         const { header, body, disposable } = this.createContent();
         this.header = header;
         this.body = body;
+
+        this.toNoDisposeWrapped = this.toDispose.push(wrapped);
         this.toDispose.pushAll([
             disposable,
             this.collapsedEmitter,
             this.moveBeforeEmitter,
             this.contextMenuEmitter,
+            this.onVisibilityChangedEmitter,
+            this.onTitleChangedEmitter,
             this.registerDND(),
-            this.registerContextMenu()
+            this.registerContextMenu(),
+            this.onDidFocusEmitter,
+            // focus event does not bubble, capture it
+            addEventListener(this.node, 'focus', () => this.onDidFocusEmitter.fire(this), true)
         ]);
         this.scrollOptions = {
             suppressScrollX: true,
             minScrollbarLength: 35
         };
-        this.node.tabIndex = 0;
         this.collapsed = !!options.initiallyCollapsed;
         if (options.initiallyHidden && this.canHide) {
             this.hide();
@@ -464,7 +681,10 @@ export class ViewContainerPart extends BaseWidget {
             return;
         }
         this._collapsed = collapsed;
-        this.body.style.display = collapsed ? 'none' : 'block';
+        if (collapsed && this.wrapped.node.contains(document.activeElement)) {
+            this.header.focus();
+        }
+        this.wrapped.setHidden(collapsed);
         const toggleIcon = this.header.querySelector(`span.${EXPANSION_TOGGLE_CLASS}`);
         if (toggleIcon) {
             if (collapsed) {
@@ -477,7 +697,7 @@ export class ViewContainerPart extends BaseWidget {
         this.collapsedEmitter.fire(collapsed);
     }
 
-    get canHide() {
+    get canHide(): boolean {
         return this.options.canHide === undefined || this.options.canHide;
     }
 
@@ -500,6 +720,29 @@ export class ViewContainerPart extends BaseWidget {
         } else {
             return parseCssMagnitude(style.minHeight, 0);
         }
+    }
+
+    protected readonly toShowHeader = new DisposableCollection();
+    showTitle(): void {
+        this.toShowHeader.dispose();
+    }
+
+    hideTitle(): void {
+        if (this.titleHidden) {
+            return;
+        }
+        const display = this.header.style.display;
+        const height = this.body.style.height;
+        this.body.style.height = '100%';
+        this.header.style.display = 'none';
+        this.toShowHeader.push(Disposable.create(() => {
+            this.header.style.display = display;
+            this.body.style.height = height;
+        }));
+    }
+
+    get titleHidden(): boolean {
+        return !this.toShowHeader.disposed || this.collapsed;
     }
 
     protected getScrollContainer(): HTMLElement {
@@ -581,10 +824,17 @@ export class ViewContainerPart extends BaseWidget {
     protected createHeader(): { header: HTMLElement, disposable: Disposable } {
         const disposable = new DisposableCollection();
         const header = document.createElement('div');
+        header.tabIndex = 0;
         header.classList.add('theia-header', 'header');
-        disposable.push(addEventListener(header, 'click', () => {
+        disposable.push(addEventListener(header, 'click', event => {
+            if (this.toolbar && this.toolbar.shouldHandleMouseEvent(event)) {
+                return;
+            }
             this.collapsed = !this.collapsed;
         }));
+        disposable.push(addKeyListener(header, Key.ARROW_LEFT, () => this.collapsed = true));
+        disposable.push(addKeyListener(header, Key.ARROW_RIGHT, () => this.collapsed = false));
+        disposable.push(addKeyListener(header, Key.ENTER, () => this.collapsed = !this.collapsed));
 
         const toggleIcon = document.createElement('span');
         toggleIcon.classList.add(EXPANSION_TOGGLE_CLASS);
@@ -595,37 +845,78 @@ export class ViewContainerPart extends BaseWidget {
 
         const title = document.createElement('span');
         title.classList.add('label', 'noselect');
-        title.innerText = this.wrapped.title.label;
+        const updateTitle = () => title.innerText = this.wrapped.title.label;
+        updateTitle();
+        disposable.push(this.onTitleChanged(updateTitle));
         header.appendChild(title);
-
-        if (ViewContainerPart.ContainedWidget.is(this.wrapped)) {
-            for (const { tooltip, execute, className } of this.wrapped.toolbarElements.filter(e => e.enabled !== false)) {
-                const toolbarItem = document.createElement('span');
-                toolbarItem.classList.add('element');
-                if (typeof className === 'string') {
-                    toolbarItem.classList.add(...className.split(' '));
-                } else if (Array.isArray(className)) {
-                    className.forEach(a => toolbarItem.classList.add(...a.split(' ')));
-                }
-                toolbarItem.title = tooltip;
-                disposable.push(addEventListener(toolbarItem, 'click', async event => {
-                    event.stopPropagation();
-                    event.preventDefault();
-                    await execute();
-                    this.update();
-                }));
-                header.appendChild(toolbarItem);
-            }
-        }
         return {
             header,
             disposable
         };
     }
 
+    protected toolbar: TabBarToolbar | undefined;
+
+    protected readonly toHideToolbar = new DisposableCollection();
+    hideToolbar(): void {
+        this.toHideToolbar.dispose();
+    }
+
+    showToolbar(): void {
+        if (this.toolbarHidden) {
+            return;
+        }
+        this.toDisposeOnDetach.push(this.toHideToolbar);
+
+        const toolbar = this.toolbarFactory();
+        toolbar.addClass('theia-view-container-part-title');
+        this.toHideToolbar.push(toolbar);
+
+        Widget.attach(toolbar, this.header);
+        this.toHideToolbar.push(Disposable.create(() => Widget.detach(toolbar)));
+
+        this.toolbar = toolbar;
+        this.toHideToolbar.push(Disposable.create(() => this.toolbar = undefined));
+
+        const items = this.toolbarRegistry.visibleItems(this.wrapped);
+        toolbar.updateItems(items, this.wrapped);
+    }
+
+    get toolbarHidden(): boolean {
+        return !this.toHideToolbar.disposed || this.titleHidden;
+    }
+
+    protected onResize(msg: Widget.ResizeMessage): void {
+        if (this.wrapped.isAttached && !this.collapsed) {
+            MessageLoop.sendMessage(this.wrapped, Widget.ResizeMessage.UnknownSize);
+        }
+        super.onResize(msg);
+    }
+
+    protected onUpdateRequest(msg: Message): void {
+        if (this.collapsed) {
+            this.hideToolbar();
+        } else if (this.node.matches(':hover')) {
+            this.showToolbar();
+        }
+        if (this.wrapped.isAttached && !this.collapsed) {
+            MessageLoop.sendMessage(this.wrapped, msg);
+        }
+        super.onUpdateRequest(msg);
+    }
+
+    protected onBeforeAttach(msg: Message): void {
+        super.onBeforeAttach(msg);
+        this.addEventListener(this.node, 'mouseenter', () => this.showToolbar());
+        this.addEventListener(this.node, 'mouseleave', () => this.hideToolbar());
+    }
+
     protected onAfterAttach(msg: Message): void {
         if (!this.wrapped.isAttached) {
-            Widget.attach(this.wrapped, this.body);
+            MessageLoop.sendMessage(this.wrapped, Widget.Msg.BeforeAttach);
+            // tslint:disable-next-line:no-null-keyword
+            this.body.insertBefore(this.wrapped.node, null);
+            MessageLoop.sendMessage(this.wrapped, Widget.Msg.AfterAttach);
         }
         super.onAfterAttach(msg);
     }
@@ -633,15 +924,68 @@ export class ViewContainerPart extends BaseWidget {
     protected onBeforeDetach(msg: Message): void {
         super.onBeforeDetach(msg);
         if (this.wrapped.isAttached) {
-            Widget.detach(this.wrapped);
+            MessageLoop.sendMessage(this.wrapped, Widget.Msg.BeforeDetach);
+            this.wrapped.node.parentNode!.removeChild(this.wrapped.node);
+            MessageLoop.sendMessage(this.wrapped, Widget.Msg.AfterDetach);
         }
     }
 
-    protected onUpdateRequest(msg: Message): void {
-        if (this.wrapped.isAttached) {
-            this.wrapped.update();
+    protected onBeforeShow(msg: Message): void {
+        if (this.wrapped.isAttached && !this.collapsed) {
+            MessageLoop.sendMessage(this.wrapped, msg);
         }
-        super.onUpdateRequest(msg);
+        super.onBeforeShow(msg);
+    }
+
+    protected onAfterShow(msg: Message): void {
+        super.onAfterShow(msg);
+        if (this.wrapped.isAttached && !this.collapsed) {
+            MessageLoop.sendMessage(this.wrapped, msg);
+        }
+    }
+
+    protected onBeforeHide(msg: Message): void {
+        if (this.wrapped.isAttached && this.collapsed) {
+            MessageLoop.sendMessage(this.wrapped, msg);
+        }
+        super.onBeforeShow(msg);
+    }
+
+    protected onAfterHide(msg: Message): void {
+        super.onAfterHide(msg);
+        if (this.wrapped.isAttached && this.collapsed) {
+            MessageLoop.sendMessage(this.wrapped, msg);
+        }
+    }
+
+    protected onChildRemoved(msg: Widget.ChildMessage): void {
+        super.onChildRemoved(msg);
+        // if wrapped is not disposed, but detached then we should not dispose it, but only get rid of this part
+        this.toNoDisposeWrapped.dispose();
+        this.dispose();
+    }
+
+    protected onActivateRequest(msg: Message): void {
+        super.onActivateRequest(msg);
+        if (this.collapsed) {
+            this.header.focus();
+        } else {
+            this.wrapped.activate();
+        }
+    }
+
+    setFlag(flag: Widget.Flag): void {
+        super.setFlag(flag);
+        if (flag === Widget.Flag.IsVisible) {
+            this.onVisibilityChangedEmitter.fire(this.isVisible);
+        }
+    }
+
+    clearFlag(flag: Widget.Flag): void {
+        super.clearFlag(flag);
+        if (flag === Widget.Flag.IsVisible) {
+            this.onVisibilityChangedEmitter.fire(this.isVisible);
+        }
     }
 
 }
@@ -653,26 +997,8 @@ export namespace ViewContainerPart {
      */
     export const HEADER_HEIGHT = 22;
 
-    export interface ToolbarElement {
-        /** default true */
-        readonly enabled?: boolean
-        readonly className: string | string[]
-        readonly tooltip: string
-        // tslint:disable-next-line:no-any
-        execute(): any
-    }
-
-    export interface ContainedWidget extends Widget {
-        readonly toolbarElements: ToolbarElement[];
-    }
-
-    export namespace ContainedWidget {
-        export function is(widget: Widget | undefined): widget is ViewContainerPart.ContainedWidget {
-            return !!widget && ('toolbarElements' in widget);
-        }
-    }
-
     export interface State {
+        widget?: Widget
         partId: string;
         collapsed: boolean;
         hidden: boolean;
@@ -709,10 +1035,21 @@ export class ViewContainerLayout extends SplitLayout {
         return toArray(this.iter());
     }
 
-    moveWidget(fromIndex: number, toIndex: number): void {
-        // Note: internally, the `widget` argument is not used. See: `node_modules/@phosphor/widgets/lib/splitlayout.js`.
-        // tslint:disable-next-line:no-any
-        super.moveWidget(fromIndex, toIndex, undefined as any);
+    moveWidget(fromIndex: number, toIndex: number, widget: Widget): void {
+        const ref = this.widgets[toIndex < fromIndex ? toIndex : toIndex + 1];
+        super.moveWidget(fromIndex, toIndex, widget);
+        if (ref) {
+            this.parent!.node.insertBefore(this.handles[toIndex], ref.node);
+        } else {
+            this.parent!.node.appendChild(this.handles[toIndex]);
+        }
+        MessageLoop.sendMessage(widget, Widget.Msg.BeforeDetach);
+        this.parent!.node.removeChild(widget.node);
+        MessageLoop.sendMessage(widget, Widget.Msg.AfterDetach);
+
+        MessageLoop.sendMessage(widget, Widget.Msg.BeforeAttach);
+        this.parent!.node.insertBefore(widget.node, this.handles[toIndex]);
+        MessageLoop.sendMessage(widget, Widget.Msg.AfterAttach);
     }
 
     getPartSize(part: ViewContainerPart): number | undefined {

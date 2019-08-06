@@ -23,7 +23,7 @@ import {
 } from '@phosphor/widgets';
 import { Message } from '@phosphor/messaging';
 import { IDragEvent } from '@phosphor/dragdrop';
-import { RecursivePartial, MaybePromise, Event as CommonEvent } from '../../common';
+import { RecursivePartial, MaybePromise, Event as CommonEvent, DisposableCollection, Disposable } from '../../common';
 import { Saveable } from '../saveable';
 import { StatusBarImpl, StatusBarEntry, StatusBarAlignment } from '../status-bar/status-bar';
 import { TheiaDockPanel, BOTTOM_AREA_ID, MAIN_AREA_ID } from './theia-dock-panel';
@@ -45,7 +45,7 @@ const MAIN_AREA_CLASS = 'theia-app-main';
 /** The class name added to the bottom area panel. */
 const BOTTOM_AREA_CLASS = 'theia-app-bottom';
 
-const LAYOUT_DATA_VERSION = '2.0';
+const LAYOUT_DATA_VERSION = '3.0';
 
 export const ApplicationShellOptions = Symbol('ApplicationShellOptions');
 export const DockPanelRendererFactory = Symbol('DockPanelRendererFactory');
@@ -270,7 +270,7 @@ export class ApplicationShell extends Widget {
         }
     }
 
-    protected onDragEnter({ mimeData }: IDragEvent) {
+    protected onDragEnter({ mimeData }: IDragEvent): void {
         if (!this.dragState) {
             if (mimeData && mimeData.hasData('application/vnd.phosphor.widget-factory')) {
                 // The drag contains a widget, so we'll track it and expand side panels as needed
@@ -284,7 +284,7 @@ export class ApplicationShell extends Widget {
         }
     }
 
-    protected onDragOver(event: IDragEvent) {
+    protected onDragOver(event: IDragEvent): void {
         const state = this.dragState;
         if (state) {
             state.lastDragOver = event;
@@ -351,7 +351,7 @@ export class ApplicationShell extends Widget {
         }
     }
 
-    protected onDrop(event: IDragEvent) {
+    protected onDrop(event: IDragEvent): void {
         const state = this.dragState;
         if (state) {
             if (state.leaveTimeout) {
@@ -373,7 +373,7 @@ export class ApplicationShell extends Widget {
         }
     }
 
-    protected onDragLeave(event: IDragEvent) {
+    protected onDragLeave(event: IDragEvent): void {
         const state = this.dragState;
         if (state) {
             state.lastDragOver = undefined;
@@ -564,18 +564,18 @@ export class ApplicationShell extends Widget {
         const { mainPanel, bottomPanel, leftPanel, rightPanel, activeWidgetId } = this.getValidatedLayoutData(layoutData);
         if (leftPanel) {
             this.leftPanelHandler.setLayoutData(leftPanel);
-            this.registerWithFocusTracker(leftPanel);
+            await this.registerWithFocusTracker(leftPanel);
         }
         if (rightPanel) {
             this.rightPanelHandler.setLayoutData(rightPanel);
-            this.registerWithFocusTracker(rightPanel);
+            await this.registerWithFocusTracker(rightPanel);
         }
         // Proceed with the bottom panel once the side panels are set up
         await Promise.all([this.leftPanelHandler.state.pendingUpdate, this.rightPanelHandler.state.pendingUpdate]);
         if (bottomPanel) {
             if (bottomPanel.config) {
                 this.bottomPanel.restoreLayout(bottomPanel.config);
-                this.registerWithFocusTracker(bottomPanel.config.main);
+                await this.registerWithFocusTracker(bottomPanel.config.main);
             }
             if (bottomPanel.size) {
                 this.bottomPanelState.lastPanelSize = bottomPanel.size;
@@ -591,14 +591,14 @@ export class ApplicationShell extends Widget {
         await this.bottomPanelState.pendingUpdate;
         if (mainPanel) {
             this.mainPanel.restoreLayout(mainPanel);
-            this.registerWithFocusTracker(mainPanel.main);
+            await this.registerWithFocusTracker(mainPanel.main);
         }
         if (activeWidgetId) {
             this.activateWidget(activeWidgetId);
         }
     }
 
-    protected getValidatedLayoutData(layoutData: ApplicationShell.LayoutData) {
+    protected getValidatedLayoutData(layoutData: ApplicationShell.LayoutData): ApplicationShell.LayoutData {
         if (layoutData.version !== LAYOUT_DATA_VERSION) {
             throw new Error(`Saved workbench layout (version ${layoutData.version || 'unknown'}) is incompatible with the current (${LAYOUT_DATA_VERSION})`);
         }
@@ -640,22 +640,22 @@ export class ApplicationShell extends Widget {
     /**
      * Track all widgets that are referenced by the given layout data.
      */
-    protected registerWithFocusTracker(data: DockLayout.ITabAreaConfig | DockLayout.ISplitAreaConfig | SidePanel.LayoutData | null): void {
+    protected async registerWithFocusTracker(data: DockLayout.ITabAreaConfig | DockLayout.ISplitAreaConfig | SidePanel.LayoutData | null): Promise<void> {
         if (data) {
             if (data.type === 'tab-area') {
                 for (const widget of data.widgets) {
                     if (widget) {
-                        this.track(widget);
+                        await this.track(widget);
                     }
                 }
             } else if (data.type === 'split-area') {
                 for (const child of data.children) {
-                    this.registerWithFocusTracker(child);
+                    await this.registerWithFocusTracker(child);
                 }
             } else if (data.type === 'sidepanel' && data.items) {
                 for (const item of data.items) {
                     if (item.widget) {
-                        this.track(item.widget);
+                        await this.track(item.widget);
                     }
                 }
             }
@@ -670,7 +670,7 @@ export class ApplicationShell extends Widget {
      *
      * Widgets added to the top area are not tracked regarding the _current_ and _active_ states.
      */
-    addWidget(widget: Widget, options: Readonly<ApplicationShell.WidgetOptions> = {}) {
+    async addWidget(widget: Widget, options: Readonly<ApplicationShell.WidgetOptions> = {}): Promise<void> {
         if (!widget.id) {
             console.error('Widgets added to the application shell must have a unique id property.');
             return;
@@ -720,7 +720,7 @@ export class ApplicationShell extends Widget {
                 throw new Error('Unexpected area: ' + options.area);
         }
         if (area !== 'top') {
-            this.track(widget);
+            await this.track(widget);
         }
     }
 
@@ -853,7 +853,7 @@ export class ApplicationShell extends Widget {
     /**
      * Set the z-index of the given element and its ancestors to the value `z`.
      */
-    private setZIndex(element: HTMLElement, z: string | null) {
+    private setZIndex(element: HTMLElement, z: string | null): void {
         element.style.zIndex = z;
         const parent = element.parentElement;
         if (parent && parent !== this.node) {
@@ -865,17 +865,33 @@ export class ApplicationShell extends Widget {
      * Track the given widget so it is considered in the `current` and `active` state of the shell.
      */
     protected async track(widget: Widget): Promise<void> {
+        if (this.tracker.widgets.indexOf(widget) !== -1) {
+            return;
+        }
         this.tracker.add(widget);
+        this.checkActivation(widget);
         Saveable.apply(widget);
         if (ApplicationShell.TrackableWidgetProvider.is(widget)) {
             for (const toTrack of await widget.getTrackableWidgets()) {
-                this.tracker.add(toTrack);
-                Saveable.apply(toTrack);
+                await this.track(toTrack);
             }
             if (widget.onDidChangeTrackableWidgets) {
                 widget.onDidChangeTrackableWidgets(widgets => widgets.forEach(w => this.track(w)));
             }
         }
+    }
+
+    protected toTrackedStack(id: string): Widget[] {
+        const tracked = new Map<string, Widget>(this.tracker.widgets.map(w => [w.id, w] as [string, Widget]));
+        let current = tracked.get(id);
+        const stack: Widget[] = [];
+        while (current) {
+            if (tracked.has(current.id)) {
+                stack.push(current);
+            }
+            current = current.parent || undefined;
+        }
+        return stack;
     }
 
     /**
@@ -889,24 +905,45 @@ export class ApplicationShell extends Widget {
      * @returns the activated widget if it was found
      */
     activateWidget(id: string): Widget | undefined {
+        const stack = this.toTrackedStack(id);
+        let current = stack.pop();
+        if (current && !this.doActivateWidget(current.id)) {
+            return undefined;
+        }
+        while (current && stack.length) {
+            const child = stack.pop()!;
+            if (ApplicationShell.TrackableWidgetProvider.is(current) && current.activateWidget) {
+                current = current.activateWidget(child.id);
+            } else {
+                child.activate();
+                current = child;
+            }
+        }
+        return current;
+    }
+
+    /**
+     * Activate top-level area widget.
+     */
+    protected doActivateWidget(id: string): Widget | undefined {
         let widget = find(this.mainPanel.widgets(), w => w.id === id);
         if (widget) {
             this.mainPanel.activateWidget(widget);
-            return this.checkActivation(widget);
+            return widget;
         }
         widget = find(this.bottomPanel.widgets(), w => w.id === id);
         if (widget) {
             this.expandBottomPanel();
             this.bottomPanel.activateWidget(widget);
-            return this.checkActivation(widget);
+            return widget;
         }
         widget = this.leftPanelHandler.activate(id);
         if (widget) {
-            return this.checkActivation(widget);
+            return widget;
         }
         widget = this.rightPanelHandler.activate(id);
         if (widget) {
-            return this.checkActivation(widget);
+            return widget;
         }
     }
 
@@ -918,12 +955,35 @@ export class ApplicationShell extends Widget {
      * `activeWidget` property.
      */
     private checkActivation(widget: Widget): Widget {
-        window.requestAnimationFrame(() => {
-            if (this.activeWidget !== widget) {
-                console.warn('Widget was activated, but did not accept focus: ' + widget.id);
-            }
-        });
+        const onActivateRequest = widget['onActivateRequest'].bind(widget);
+        widget['onActivateRequest'] = (msg: Message) => {
+            onActivateRequest(msg);
+            this.assertActivated(widget);
+        };
         return widget;
+    }
+
+    private readonly activationTimeout = 2000;
+    private readonly toDisposeOnActivationCheck = new DisposableCollection();
+    private assertActivated(widget: Widget): void {
+        this.toDisposeOnActivationCheck.dispose();
+        let start = 0;
+        const step: FrameRequestCallback = timestamp => {
+            if (document.activeElement && widget.node.contains(document.activeElement)) {
+                return;
+            }
+            if (!start) {
+                start = timestamp;
+            }
+            const delta = timestamp - start;
+            if (delta < this.activationTimeout) {
+                request = window.requestAnimationFrame(step);
+            } else {
+                console.warn(`Widget was activated, but did not accept focus after ${this.activationTimeout}ms: ${widget.id}`);
+            }
+        };
+        let request = window.requestAnimationFrame(step);
+        this.toDisposeOnActivationCheck.push(Disposable.create(() => window.cancelAnimationFrame(request)));
     }
 
     /**
@@ -933,6 +993,26 @@ export class ApplicationShell extends Widget {
      * @returns the revealed widget if it was found
      */
     revealWidget(id: string): Widget | undefined {
+        const stack = this.toTrackedStack(id);
+        let current = stack.pop();
+        if (current && !this.doRevealWidget(current.id)) {
+            return undefined;
+        }
+        while (current && stack.length) {
+            const child = stack.pop()!;
+            if (ApplicationShell.TrackableWidgetProvider.is(current) && current.revealWidget) {
+                current = current.revealWidget(child.id);
+            } else {
+                current = child;
+            }
+        }
+        return current;
+    }
+
+    /**
+     * Reveal top-level area widget.
+     */
+    protected doRevealWidget(id: string): Widget | undefined {
         let widget = find(this.mainPanel.widgets(), w => w.id === id);
         if (!widget) {
             widget = find(this.bottomPanel.widgets(), w => w.id === id);
@@ -951,10 +1031,7 @@ export class ApplicationShell extends Widget {
         if (widget) {
             return widget;
         }
-        widget = this.rightPanelHandler.expand(id);
-        if (widget) {
-            return widget;
-        }
+        return this.rightPanelHandler.expand(id);
     }
 
     /**
@@ -1086,7 +1163,7 @@ export class ApplicationShell extends Widget {
      * Refresh the toggle button for the bottom panel. This implementation creates a status bar entry
      * and refers to the command `core.toggle.bottom.panel`.
      */
-    protected refreshBottomPanelToggleButton() {
+    protected refreshBottomPanelToggleButton(): void {
         if (this.bottomPanel.isEmpty) {
             this.statusBar.removeElement(BOTTOM_PANEL_TOGGLE_ID);
         } else {
@@ -1531,6 +1608,16 @@ export namespace ApplicationShell {
     export interface TrackableWidgetProvider {
         getTrackableWidgets(): MaybePromise<Widget[]>
         readonly onDidChangeTrackableWidgets?: CommonEvent<Widget[]>
+        /**
+         * Make visible and focus a trackable widget for the given id.
+         * If not implemented then `activate` request will be sent to a child widget directly.
+         */
+        activateWidget?(id: string): Widget | undefined;
+        /**
+         * Make visible a trackable widget for the given id.
+         * If not implemented then a widget should be always visible when an owner is visible.
+         */
+        revealWidget?(id: string): Widget | undefined;
     }
 
     export namespace TrackableWidgetProvider {

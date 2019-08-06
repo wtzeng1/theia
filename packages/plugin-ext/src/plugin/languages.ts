@@ -26,8 +26,8 @@ import {
     Selection,
     RawColorInfo,
     WorkspaceEditDto,
-} from '../api/plugin-api';
-import { RPCProtocol } from '../api/rpc-protocol';
+} from '../common/plugin-api-rpc';
+import { RPCProtocol } from '../common/rpc-protocol';
 import * as theia from '@theia/plugin';
 import { DocumentsExtImpl } from './documents';
 import { PluginModel } from '../common/plugin-protocol';
@@ -55,7 +55,7 @@ import {
     Location,
     ColorPresentation,
     RenameLocation,
-} from '../api/model';
+} from '../common/plugin-api-rpc-model';
 import { CompletionAdapter } from './languages/completion';
 import { Diagnostics } from './languages/diagnostics';
 import { SignatureHelpAdapter } from './languages/signature';
@@ -77,6 +77,7 @@ import { SymbolInformation } from 'vscode-languageserver-types';
 import { FoldingProviderAdapter } from './languages/folding';
 import { ColorProviderAdapter } from './languages/color';
 import { RenameAdapter } from './languages/rename';
+import { Event } from '@theia/core/lib/common/event';
 
 type Adapter = CompletionAdapter |
     SignatureHelpAdapter |
@@ -113,7 +114,7 @@ export class LanguagesExtImpl implements LanguagesExt {
         this.diagnostics = new Diagnostics(rpc);
     }
 
-    get onDidChangeDiagnostics() {
+    get onDidChangeDiagnostics(): Event<theia.DiagnosticChangeEvent> {
         return this.diagnostics.onDidChangeDiagnostics;
     }
 

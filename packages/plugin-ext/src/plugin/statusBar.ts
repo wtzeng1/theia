@@ -14,9 +14,9 @@
  * SPDX-License-Identifier: EPL-2.0 OR GPL-2.0 WITH Classpath-exception-2.0
  ********************************************************************************/
 
-import { PLUGIN_RPC_CONTEXT, StatusBarExt, StatusBarMessageRegistryMain } from '../api/plugin-api';
+import { PLUGIN_RPC_CONTEXT, StatusBarExt, StatusBarMessageRegistryMain } from '../common/plugin-api-rpc';
 import { CancellationToken, Progress, ProgressOptions } from '@theia/plugin';
-import { RPCProtocol } from '../api/rpc-protocol';
+import { RPCProtocol } from '../common/rpc-protocol';
 import { Event, Emitter } from '@theia/core/lib/common/event';
 import { Disposable, DisposableCollection } from '@theia/core/lib/common/disposable';
 import { StatusBarItemImpl } from './status-bar/status-bar-item';
@@ -77,7 +77,7 @@ class ProgressCallback<T> implements Progress<{ message?: string, increment?: nu
         this.message = message;
         this.proxy = proxy;
     }
-    report(item: { message?: string, increment?: number }) {
+    report(item: { message?: string, increment?: number }): void {
         this.proxy.$update(this.id, this.message + (item.message ? ': ' + ' ' + item.message : ''));
     }
 }

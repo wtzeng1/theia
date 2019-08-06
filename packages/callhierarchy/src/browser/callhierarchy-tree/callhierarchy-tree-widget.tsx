@@ -82,7 +82,7 @@ export class CallHierarchyTreeWidget extends TreeWidget {
 
     protected renderTree(model: TreeModel): React.ReactNode {
         return super.renderTree(model)
-            || <div className='noCallers'>No callers have been detected.</div>;
+            || <div className='theia-widget-noInfo'>No callers have been detected.</div>;
     }
 
     protected renderCaption(node: TreeNode, props: NodeProps): React.ReactNode {
@@ -136,6 +136,7 @@ export class CallHierarchyTreeWidget extends TreeWidget {
         </div>;
     }
 
+    // tslint:disable-next-line:typedef
     protected toIconClass(symbolKind: number) {
         switch (symbolKind) {
             case SymbolKind.File: return 'file';
@@ -160,7 +161,7 @@ export class CallHierarchyTreeWidget extends TreeWidget {
         }
     }
 
-    private openEditor(node: TreeNode, keepFocus: boolean) {
+    private openEditor(node: TreeNode, keepFocus: boolean): void {
         let location: Location | undefined;
         if (DefinitionNode.is(node)) {
             location = node.definition.location;

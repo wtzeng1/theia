@@ -20,8 +20,11 @@ import { TaskResolverRegistry } from '@theia/task/lib/browser/task-contribution'
 import { CppBuildConfigurationManager, CppBuildConfiguration } from './cpp-build-configurations';
 import { Event } from '@theia/core';
 import { expect } from 'chai';
-import { TaskConfiguration } from '@theia/task/src/common';
+import { TaskConfiguration } from '@theia/task/lib/common';
 import { ProcessTaskConfiguration } from '@theia/task/lib/common/process/task-protocol';
+import { TaskDefinitionRegistry } from '@theia/task/lib/browser/task-definition-registry';
+import { ProblemMatcherRegistry } from '@theia/task/lib/browser/task-problem-matcher-registry';
+import { ProblemPatternRegistry } from '@theia/task/lib/browser/task-problem-pattern-registry';
 
 // The object under test.
 let taskProvider: CppTaskProvider;
@@ -63,11 +66,15 @@ class MockCppBuildConfigurationManager implements CppBuildConfigurationManager {
     ready: Promise<void> = Promise.resolve();
 }
 
-beforeEach(function () {
+beforeEach(function (): void {
     const container: Container = new Container();
     container.bind(CppTaskProvider).toSelf().inSingletonScope();
-    container.bind(TaskResolverRegistry).toSelf().inSingletonScope();
     container.bind(CppBuildConfigurationManager).to(MockCppBuildConfigurationManager);
+    container.bind(TaskResolverRegistry).toSelf().inSingletonScope();
+    container.bind(TaskDefinitionRegistry).toSelf().inSingletonScope();
+    container.bind(ProblemMatcherRegistry).toSelf().inSingletonScope();
+    container.bind(ProblemPatternRegistry).toSelf().inSingletonScope();
+
     taskProvider = container.get(CppTaskProvider);
 
     // Register a task resolver of type 'shell', on which the cpp build tasks
@@ -80,8 +87,8 @@ beforeEach(function () {
     });
 });
 
-describe('CppTaskProvider', function () {
-    it('provide a task for each build config with a build command', async function () {
+describe('CppTaskProvider', function (): void {
+    it('provide a task for each build config with a build command', async function (): Promise<void> {
         const tasks = await taskProvider.provideTasks();
         expect(tasks).length(1);
         expect(tasks[0].config.name === 'Build 1');

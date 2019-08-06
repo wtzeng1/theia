@@ -59,7 +59,7 @@ export class ProblemContribution extends AbstractViewContribution<ProblemWidget>
 
     constructor() {
         super({
-            widgetId: PROBLEM_KIND,
+            widgetId: PROBLEMS_WIDGET_ID,
             widgetName: 'Problems',
             defaultWidgetOptions: {
                 area: 'bottom'
@@ -69,7 +69,7 @@ export class ProblemContribution extends AbstractViewContribution<ProblemWidget>
         });
     }
 
-    onStart(app: FrontendApplication) {
+    onStart(app: FrontendApplication): void {
         this.setStatusBarElement(this.problemManager.getProblemStat());
         this.problemManager.onDidChangeMarkers(() => {
             this.setStatusBarElement(this.problemManager.getProblemStat());
@@ -80,9 +80,11 @@ export class ProblemContribution extends AbstractViewContribution<ProblemWidget>
         await this.openView();
     }
 
-    protected setStatusBarElement(problemStat: ProblemStat) {
+    protected setStatusBarElement(problemStat: ProblemStat): void {
         this.statusBar.setElement('problem-marker-status', {
-            text: `$(times-circle) ${problemStat.errors} $(exclamation-triangle) ${problemStat.warnings}`,
+            text: problemStat.infos <= 0
+                ? `$(times-circle) ${problemStat.errors} $(exclamation-triangle) ${problemStat.warnings}`
+                : `$(times-circle) ${problemStat.errors} $(exclamation-triangle) ${problemStat.warnings} $(info-circle) ${problemStat.infos}`,
             alignment: StatusBarAlignment.LEFT,
             priority: 10,
             command: this.toggleCommand ? this.toggleCommand.id : undefined

@@ -18,11 +18,11 @@
 
 import * as path from 'path';
 import URI from 'vscode-uri';
-import { TreeDataProvider, TreeView, TreeViewExpansionEvent } from '@theia/plugin';
+import { TreeDataProvider, TreeView, TreeViewExpansionEvent, TreeItem2, TreeItemLabel } from '@theia/plugin';
 import { Emitter } from '@theia/core/lib/common/event';
 import { Disposable, ThemeIcon } from '../types-impl';
-import { Plugin, PLUGIN_RPC_CONTEXT, TreeViewsExt, TreeViewsMain, TreeViewItem } from '../../api/plugin-api';
-import { RPCProtocol } from '../../api/rpc-protocol';
+import { Plugin, PLUGIN_RPC_CONTEXT, TreeViewsExt, TreeViewsMain, TreeViewItem } from '../../common/plugin-api-rpc';
+import { RPCProtocol } from '../../common/rpc-protocol';
 import { CommandRegistryImpl } from '../command-registry';
 import { TreeViewSelection } from '../../common';
 import { PluginPackage } from '../../common/plugin-protocol';
@@ -65,14 +65,15 @@ export class TreeViewsExtImpl implements TreeViewsExt {
         this.treeViews.set(treeViewId, treeView);
 
         return {
+            // tslint:disable-next-line:typedef
             get onDidExpandElement() {
                 return treeView.onDidExpandElement;
             },
-
+            // tslint:disable-next-line:typedef
             get onDidCollapseElement() {
                 return treeView.onDidCollapseElement;
             },
-
+            // tslint:disable-next-line:typedef
             get selection() {
                 return treeView.selectedElements;
             },
@@ -124,8 +125,6 @@ class TreeViewExtImpl<T> extends Disposable {
 
     private cache: Map<string, T> = new Map<string, T>();
 
-    private idCounter: number = 0;
-
     constructor(
         private plugin: Plugin,
         private treeViewId: string,
@@ -133,7 +132,7 @@ class TreeViewExtImpl<T> extends Disposable {
         private proxy: TreeViewsMain) {
 
         super(() => {
-            this.dispose();
+            proxy.$unregisterTreeDataProvider(treeViewId);
         });
 
         proxy.$registerTreeDataProvider(treeViewId);
@@ -143,9 +142,6 @@ class TreeViewExtImpl<T> extends Disposable {
                 proxy.$refresh(treeViewId);
             });
         }
-    }
-
-    dispose() {
     }
 
     async reveal(element: T, selectionOptions?: { select?: boolean }): Promise<void> {
@@ -162,40 +158,39 @@ class TreeViewExtImpl<T> extends Disposable {
         }
     }
 
-    generateId(): string {
-        return `item-${this.idCounter++}`;
-    }
-
     getTreeItem(treeItemId: string): T | undefined {
         return this.cache.get(treeItemId);
     }
 
-    async getChildren(treeItemId: string): Promise<TreeViewItem[] | undefined> {
+    async getChildren(parentId: string): Promise<TreeViewItem[] | undefined> {
         // get element from a cache
-        const cachedElement = this.getTreeItem(treeItemId);
+        const parent = this.getTreeItem(parentId);
+        if (parentId && !parent) {
+            console.error(`No tree item with id '${parentId}' found.`);
+            return [];
+        }
 
         // ask data provider for children for cached element
-        const result = await this.treeDataProvider.getChildren(cachedElement);
+        const result = await this.treeDataProvider.getChildren(parent);
 
         if (result) {
             const treeItems: TreeViewItem[] = [];
-            const promises = result.map(async value => {
+            const promises = result.map(async (value, index) => {
 
                 // Ask data provider for a tree item for the value
                 // Data provider must return theia.TreeItem
-                const treeItem = await this.treeDataProvider.getTreeItem(value);
-
-                // Generate the ID
-                // ID is used for caching the element
-                const id = this.generateId();
-
-                // Add element to the cache
-                this.cache.set(id, value);
+                const treeItem: TreeItem2 = await this.treeDataProvider.getTreeItem(value);
 
                 // Convert theia.TreeItem to the TreeViewItem
 
                 // Take a label
-                let label = treeItem.label;
+                let label: string | undefined;
+                const treeItemLabel: string | TreeItemLabel | undefined = treeItem.label;
+                if (typeof treeItemLabel === 'object' && typeof treeItemLabel.label === 'string') {
+                    label = treeItemLabel.label;
+                } else {
+                    label = treeItem.label;
+                }
 
                 // Use resource URI if label is not set
                 if (!label && treeItem.resourceUri) {
@@ -206,10 +201,17 @@ class TreeViewExtImpl<T> extends Disposable {
                     }
                 }
 
+                // Generate the ID
+                // ID is used for caching the element
+                const id = treeItem.id || `${parentId}/${index}:${label}`;
+
                 // Use item ID if item label is still not set
                 if (!label) {
-                    label = id;
+                    label = treeItem.id;
                 }
+
+                // Add element to the cache
+                this.cache.set(id, value);
 
                 let icon;
                 let iconUrl;
@@ -242,9 +244,12 @@ class TreeViewExtImpl<T> extends Disposable {
                     }
                 }
 
+                if (treeItem.command) {
+                    treeItem.command.arguments = [id];
+                }
                 const treeViewItem = {
                     id,
-                    label: label,
+                    label,
                     icon,
                     iconUrl,
                     themeIconId,

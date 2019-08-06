@@ -14,9 +14,9 @@
  * SPDX-License-Identifier: EPL-2.0 OR GPL-2.0 WITH Classpath-exception-2.0
  ********************************************************************************/
 
-import { WebviewsExt, WebviewPanelViewState, WebviewsMain, PLUGIN_RPC_CONTEXT, /* WebviewsMain, PLUGIN_RPC_CONTEXT  */ } from '../api/plugin-api';
+import { WebviewsExt, WebviewPanelViewState, WebviewsMain, PLUGIN_RPC_CONTEXT, /* WebviewsMain, PLUGIN_RPC_CONTEXT  */ } from '../common/plugin-api-rpc';
 import * as theia from '@theia/plugin';
-import { RPCProtocol } from '../api/rpc-protocol';
+import { RPCProtocol } from '../common/rpc-protocol';
 import URI from 'vscode-uri/lib/umd';
 import { Emitter, Event } from '@theia/core/lib/common/event';
 import { fromViewColumn, toViewColumn, toWebviewPanelShowOptions } from './type-converters';
@@ -137,7 +137,7 @@ export class WebviewImpl implements theia.Webview {
         this._options = options!;
     }
 
-    dispose() {
+    dispose(): void {
         if (this.isDisposed) {
             return;
         }
@@ -150,14 +150,14 @@ export class WebviewImpl implements theia.Webview {
         this.checkIsDisposed();
         // replace theia-resource: content in the given message
         const decoded = JSON.stringify(message);
-        let newMessage = decoded.replace(new RegExp('theia-resource:/', 'g'), '/webview/');
+        let newMessage = decoded.replace(new RegExp('theia-resource:/', 'g'), 'webview/');
         if (this._options && this._options.localResourceRoots) {
             newMessage = this.filterLocalRoots(newMessage, this._options.localResourceRoots);
         }
         return this.proxy.$postMessage(this.viewId, JSON.parse(newMessage));
     }
 
-    protected filterLocalRoots(content: string, localResourceRoots: ReadonlyArray<theia.Uri>) {
+    protected filterLocalRoots(content: string, localResourceRoots: ReadonlyArray<theia.Uri>): string {
         const webViewsRegExp = /"(\/webview\/.*?)\"/g;
         let m;
         while ((m = webViewsRegExp.exec(content)) !== null) {
@@ -191,7 +191,7 @@ export class WebviewImpl implements theia.Webview {
     }
 
     set html(html: string) {
-        let newHtml = html.replace(new RegExp('theia-resource:/', 'g'), '/webview/');
+        let newHtml = html.replace(new RegExp('theia-resource:/', 'g'), 'webview/');
         if (this._options && this._options.localResourceRoots) {
             newHtml = this.filterLocalRoots(newHtml, this._options.localResourceRoots);
         }
@@ -203,7 +203,7 @@ export class WebviewImpl implements theia.Webview {
         }
     }
 
-    private checkIsDisposed() {
+    private checkIsDisposed(): void {
         if (this.isDisposed) {
             throw new Error('This Webview is disposed!');
         }
@@ -235,7 +235,7 @@ export class WebviewPanelImpl implements theia.WebviewPanel {
         this.setViewColumn(undefined);
     }
 
-    dispose() {
+    dispose(): void {
         if (this.isDisposed) {
             return;
         }
@@ -280,7 +280,7 @@ export class WebviewPanelImpl implements theia.WebviewPanel {
         }
     }
 
-    get webview() {
+    get webview(): WebviewImpl {
         this.checkIsDisposed();
         return this._webview;
     }
@@ -295,7 +295,7 @@ export class WebviewPanelImpl implements theia.WebviewPanel {
         return this._showOptions.viewColumn;
     }
 
-    setViewColumn(value: theia.ViewColumn | undefined) {
+    setViewColumn(value: theia.ViewColumn | undefined): void {
         this.checkIsDisposed();
         this._showOptions.viewColumn = value;
     }
@@ -305,7 +305,7 @@ export class WebviewPanelImpl implements theia.WebviewPanel {
         return this._showOptions;
     }
 
-    setShowOptions(value: theia.WebviewPanelShowOptions) {
+    setShowOptions(value: theia.WebviewPanelShowOptions): void {
         this.checkIsDisposed();
         this._showOptions = value;
     }
@@ -315,7 +315,7 @@ export class WebviewPanelImpl implements theia.WebviewPanel {
         return this._active;
     }
 
-    setActive(value: boolean) {
+    setActive(value: boolean): void {
         this.checkIsDisposed();
         this._active = value;
     }
@@ -325,7 +325,7 @@ export class WebviewPanelImpl implements theia.WebviewPanel {
         return this._visible;
     }
 
-    setVisible(value: boolean) {
+    setVisible(value: boolean): void {
         this.checkIsDisposed();
         this._visible = value;
     }
@@ -361,7 +361,7 @@ export class WebviewPanelImpl implements theia.WebviewPanel {
         return this.proxy.$postMessage(this.viewId, message);
     }
 
-    private checkIsDisposed() {
+    private checkIsDisposed(): void {
         if (this.isDisposed) {
             throw new Error('This WebviewPanel is disposed!');
         }

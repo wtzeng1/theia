@@ -14,14 +14,15 @@
  * SPDX-License-Identifier: EPL-2.0 OR GPL-2.0 WITH Classpath-exception-2.0
  ********************************************************************************/
 import { JsonRpcServer } from '@theia/core/lib/common/messaging/proxy-factory';
-import { RPCProtocol } from '../api/rpc-protocol';
+import { RPCProtocol } from './rpc-protocol';
 import { Disposable } from '@theia/core/lib/common/disposable';
 import { LogPart, KeysToAnyValues, KeysToKeysToAnyValue } from './types';
-import { CharacterPair, CommentRule, PluginAPIFactory, Plugin } from '../api/plugin-api';
+import { CharacterPair, CommentRule, PluginAPIFactory, Plugin } from './plugin-api-rpc';
 import { ExtPluginApi } from './plugin-ext-api-contribution';
 import { IJSONSchema, IJSONSchemaSnippet } from '@theia/core/lib/common/json-schema';
 import { RecursivePartial } from '@theia/core/lib/common/types';
 import { PreferenceSchema, PreferenceSchemaProperties } from '@theia/core/lib/common/preferences/preference-schema';
+import { ProblemMatcherContribution, ProblemPatternContribution, TaskDefinition } from '@theia/task/lib/common';
 
 export const hostedServicePath = '/services/hostedPlugin';
 
@@ -50,6 +51,7 @@ export interface PluginPackage {
     contributes?: PluginPackageContribution;
     packagePath: string;
     activationEvents?: string[];
+    extensionDependencies?: string[];
 }
 export namespace PluginPackage {
     export function toPluginUrl(pck: PluginPackage, relativePath: string): string {
@@ -72,6 +74,9 @@ export interface PluginPackageContribution {
     keybindings?: PluginPackageKeybinding[];
     debuggers?: PluginPackageDebuggersContribution[];
     snippets: PluginPackageSnippetsContribution[];
+    taskDefinitions?: PluginTaskDefinitionContribution[];
+    problemMatchers?: PluginProblemMatcherContribution[];
+    problemPatterns?: PluginProblemPatternContribution[];
 }
 
 export interface PluginPackageViewContainer {
@@ -173,6 +178,27 @@ export interface PluginPackageLanguageContributionConfiguration {
     wordPattern?: string;
     indentationRules?: IndentationRules;
     folding?: FoldingRules;
+}
+
+export interface PluginTaskDefinitionContribution {
+    type: string;
+    required: string[];
+    properties: {
+        [name: string]: {
+            type: string;
+            description?: string;
+            // tslint:disable-next-line:no-any
+            [additionalProperty: string]: any;
+        }
+    }
+}
+
+export interface PluginProblemMatcherContribution extends ProblemMatcherContribution {
+    name: string;
+}
+
+export interface PluginProblemPatternContribution extends ProblemPatternContribution {
+    name: string;
 }
 
 export const PluginScanner = Symbol('PluginScanner');
@@ -365,6 +391,9 @@ export interface PluginContribution {
     keybindings?: Keybinding[];
     debuggers?: DebuggerContribution[];
     snippets?: SnippetContribution[];
+    taskDefinitions?: TaskDefinition[];
+    problemMatchers?: ProblemMatcherContribution[];
+    problemPatterns?: ProblemPatternContribution[];
 }
 
 export interface SnippetContribution {

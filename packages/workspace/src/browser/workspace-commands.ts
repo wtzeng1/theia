@@ -136,7 +136,7 @@ export namespace WorkspaceCommands {
 @injectable()
 export class FileMenuContribution implements MenuContribution {
 
-    registerMenus(registry: MenuModelRegistry) {
+    registerMenus(registry: MenuModelRegistry): void {
         registry.registerMenuAction(CommonMenus.FILE_NEW, {
             commandId: WorkspaceCommands.NEW_FILE.id
         });
@@ -151,6 +151,18 @@ export class FileMenuContribution implements MenuContribution {
         registry.registerMenuAction(downloadUploadMenu, {
             commandId: FileDownloadCommands.DOWNLOAD.id,
             order: 'b'
+        });
+    }
+
+}
+
+@injectable()
+export class EditMenuContribution implements MenuContribution {
+
+    registerMenus(registry: MenuModelRegistry): void {
+        registry.registerMenuAction(CommonMenus.EDIT_CLIPBOARD, {
+            commandId: FileDownloadCommands.COPY_DOWNLOAD_LINK.id,
+            order: '9999'
         });
     }
 
@@ -264,10 +276,10 @@ export class WorkspaceCommandContribution implements CommandContribution {
         registry.registerCommand(WorkspaceCommands.FILE_DELETE, this.newMultiUriAwareCommandHandler(this.deleteHandler));
         registry.registerCommand(WorkspaceCommands.FILE_COMPARE, this.newMultiUriAwareCommandHandler(this.compareHandler));
         this.preferences.ready.then(() => {
-            registry.registerCommand(WorkspaceCommands.ADD_FOLDER, this.newMultiUriAwareCommandHandler({
+            registry.registerCommand(WorkspaceCommands.ADD_FOLDER, {
                 isEnabled: () => this.workspaceService.isMultiRootWorkspaceEnabled,
-                isVisible: uris => !uris.length || this.areWorkspaceRoots(uris),
-                execute: async uris => {
+                isVisible: () => this.workspaceService.isMultiRootWorkspaceEnabled,
+                execute: async () => {
                     const uri = await this.fileDialogService.showOpenDialog({
                         title: WorkspaceCommands.ADD_FOLDER.label!,
                         canSelectFiles: false,
@@ -290,7 +302,7 @@ export class WorkspaceCommandContribution implements CommandContribution {
                         }
                     }
                 }
-            }));
+            });
             registry.registerCommand(WorkspaceCommands.REMOVE_FOLDER, this.newMultiUriAwareCommandHandler({
                 execute: uris => this.removeFolderFromWorkspace(uris),
                 isEnabled: () => this.workspaceService.isMultiRootWorkspaceEnabled,
@@ -372,11 +384,7 @@ export class WorkspaceCommandContribution implements CommandContribution {
     }
 
     protected areWorkspaceRoots(uris: URI[]): boolean {
-        if (!uris.length) {
-            return false;
-        }
-        const rootUris = new Set(this.workspaceService.tryGetRoots().map(root => root.uri));
-        return uris.every(uri => rootUris.has(uri.toString()));
+        return this.workspaceService.areWorkspaceRoots(uris);
     }
 
     protected isWorkspaceRoot(uri: URI): boolean {

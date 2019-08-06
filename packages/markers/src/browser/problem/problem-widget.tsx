@@ -61,7 +61,14 @@ export class ProblemWidget extends TreeWidget {
         return;
     }
 
-    protected handleCopy(event: ClipboardEvent) {
+    protected handleClickEvent(node: TreeNode | undefined, event: React.MouseEvent<HTMLElement>): void {
+        super.handleClickEvent(node, event);
+        if (MarkerNode.is(node)) {
+            this.model.revealNode(node);
+        }
+    }
+
+    protected handleCopy(event: ClipboardEvent): void {
         const uris = this.model.selectedNodes.filter(MarkerNode.is).map(node => node.uri.toString());
         if (uris.length > 0 && event.clipboardData) {
             event.clipboardData.setData('text/plain', uris.join('\n'));
@@ -69,11 +76,27 @@ export class ProblemWidget extends TreeWidget {
         }
     }
 
+    protected handleDown(event: KeyboardEvent): void {
+        const node = this.model.getNextSelectableNode();
+        super.handleDown(event);
+        if (MarkerNode.is(node)) {
+            this.model.revealNode(node);
+        }
+    }
+
+    protected handleUp(event: KeyboardEvent): void {
+        const node = this.model.getPrevSelectableNode();
+        super.handleUp(event);
+        if (MarkerNode.is(node)) {
+            this.model.revealNode(node);
+        }
+    }
+
     protected renderTree(model: TreeModel): React.ReactNode {
         if (MarkerRootNode.is(model.root) && model.root.children.length > 0) {
             return super.renderTree(model);
         }
-        return <div className='noMarkers'>No problems have been detected in the workspace so far.</div>;
+        return <div className='theia-widget-noInfo noMarkers'>No problems have been detected in the workspace so far.</div>;
     }
 
     protected renderCaption(node: TreeNode, props: NodeProps): React.ReactNode {
@@ -85,7 +108,7 @@ export class ProblemWidget extends TreeWidget {
         return 'caption';
     }
 
-    protected renderTailDecorations(node: TreeNode, props: NodeProps) {
+    protected renderTailDecorations(node: TreeNode, props: NodeProps): JSX.Element {
         return <div className='row-button-container'>
             {this.renderRemoveButton(node)}
         </div>;
@@ -153,7 +176,7 @@ export class ProblemMarkerRemoveButton extends React.Component<{ model: ProblemT
     }
 
     protected readonly remove = (e: React.MouseEvent<HTMLElement>) => this.doRemove(e);
-    protected doRemove(e: React.MouseEvent<HTMLElement>) {
+    protected doRemove(e: React.MouseEvent<HTMLElement>): void {
         this.props.model.removeNode(this.props.node);
         e.stopPropagation();
     }

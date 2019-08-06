@@ -145,7 +145,7 @@ export class SearchInWorkspaceResultTreeWidget extends TreeWidget {
     }
 
     @postConstruct()
-    protected init() {
+    protected init(): void {
         super.init();
         this.addClass('resultContainer');
 
@@ -187,7 +187,7 @@ export class SearchInWorkspaceResultTreeWidget extends TreeWidget {
         return this.focusInputEmitter.event;
     }
 
-    collapseAll() {
+    collapseAll(): void {
         this.resultTree.forEach(rootFolderNode => {
             rootFolderNode.children.forEach(fileNode => this.expansionService.collapseNode(fileNode));
             if (rootFolderNode.visible) {
@@ -198,6 +198,7 @@ export class SearchInWorkspaceResultTreeWidget extends TreeWidget {
 
     async search(searchTerm: string, searchOptions: SearchInWorkspaceOptions): Promise<void> {
         this.searchTerm = searchTerm;
+        const collapseValue: string = this.searchInWorkspacePreferences['search.collapseResults'];
         this.resultTree.clear();
         this.cancelIndicator.cancel();
         this.cancelIndicator = new CancellationTokenSource();
@@ -222,11 +223,10 @@ export class SearchInWorkspaceResultTreeWidget extends TreeWidget {
                         if (fileNode.children.findIndex(lineNode => lineNode.id === line.id) < 0) {
                             fileNode.children.push(line);
                         }
-                        if (fileNode.children.length >= 20 && fileNode.expanded) {
-                            fileNode.expanded = false;
-                        }
+                        this.collapseFileNode(fileNode, collapseValue);
                     } else {
                         const newFileNode = this.createFileNode(result.root, name, path, result.fileUri, rootFolderNode);
+                        this.collapseFileNode(newFileNode, collapseValue);
                         const line = this.createResultLineNode(result, newFileNode);
                         newFileNode.children.push(line);
                         rootFolderNode.children.push(newFileNode);
@@ -235,8 +235,8 @@ export class SearchInWorkspaceResultTreeWidget extends TreeWidget {
                 } else {
                     const newRootFolderNode = this.createRootFolderNode(result.root);
                     tree.set(result.root, newRootFolderNode);
-
                     const newFileNode = this.createFileNode(result.root, name, path, result.fileUri, newRootFolderNode);
+                    this.collapseFileNode(newFileNode, collapseValue);
                     newFileNode.children.push(this.createResultLineNode(result, newFileNode));
                     newRootFolderNode.children.push(newFileNode);
                 }
@@ -245,6 +245,14 @@ export class SearchInWorkspaceResultTreeWidget extends TreeWidget {
                 if (token.isCancellationRequested) {
                     return;
                 }
+                // Sort the result map by folder URI.
+                this.resultTree = new Map([...this.resultTree]
+                    .sort((a: [string, SearchInWorkspaceRootFolderNode], b: [string, SearchInWorkspaceRootFolderNode]) => this.compare(a[1].folderUri, b[1].folderUri)));
+                // Update the list of children nodes, sorting them by their file URI.
+                Array.from(this.resultTree.values())
+                    .forEach((folder: SearchInWorkspaceRootFolderNode) => {
+                        folder.children = folder.children.sort((a: SearchInWorkspaceFileNode, b: SearchInWorkspaceFileNode) => this.compare(a.fileUri, b.fileUri));
+                    });
                 this.refreshModelChildren();
             }
         }, searchOptions).catch(e => { return; });
@@ -255,13 +263,27 @@ export class SearchInWorkspaceResultTreeWidget extends TreeWidget {
         });
     }
 
-    focusFirstResult() {
+    focusFirstResult(): void {
         if (SearchInWorkspaceRoot.is(this.model.root) && this.model.root.children.length > 0) {
             const node = this.model.root.children[0];
             if (SelectableTreeNode.is(node)) {
                 this.node.focus();
                 this.model.selectNode(node);
             }
+        }
+    }
+
+    /**
+     * Collapse the search-in-workspace file node
+     * based on the preference value.
+     */
+    protected collapseFileNode(node: SearchInWorkspaceFileNode, preferenceValue: string): void {
+        if (preferenceValue === 'auto' && node.children.length >= 10) {
+            node.expanded = false;
+        } else if (preferenceValue === 'alwaysCollapse') {
+            node.expanded = false;
+        } else if (preferenceValue === 'alwaysExpand') {
+            node.expanded = true;
         }
     }
 
@@ -282,7 +304,7 @@ export class SearchInWorkspaceResultTreeWidget extends TreeWidget {
         }
     }
 
-    protected updateCurrentEditorDecorations() {
+    protected updateCurrentEditorDecorations(): void {
         this.shell.allTabBars.map(tb => {
             const currentTitle = tb.currentTitle;
             if (currentTitle && currentTitle.owner instanceof EditorWidget) {
@@ -394,7 +416,7 @@ export class SearchInWorkspaceResultTreeWidget extends TreeWidget {
         </div>;
     }
 
-    protected doReplace(node: TreeNode, e: React.MouseEvent<HTMLElement>) {
+    protected doReplace(node: TreeNode, e: React.MouseEvent<HTMLElement>): void {
         this.replace(node);
         e.stopPropagation();
     }
@@ -439,7 +461,7 @@ export class SearchInWorkspaceResultTreeWidget extends TreeWidget {
         const needConfirm = !SearchInWorkspaceFileNode.is(node) && !SearchInWorkspaceResultLineNode.is(node);
         if (!needConfirm || await this.confirmReplaceAll(this.getResultCount(replaceForNode), this.getFileCount(replaceForNode))) {
             (node ? [node] : Array.from(this.resultTree.values())).forEach(n => {
-                this.replaceResult(n);
+                this.replaceResult(n, !!node);
                 this.removeNode(n);
             });
         }
@@ -454,17 +476,22 @@ export class SearchInWorkspaceResultTreeWidget extends TreeWidget {
         }).open();
     }
 
-    protected updateRightResults(node: SearchInWorkspaceResultLineNode) {
+    protected updateRightResults(node: SearchInWorkspaceResultLineNode): void {
         const fileNode = node.parent;
         const rightPositionedNodes = fileNode.children.filter(rl => rl.line === node.line && rl.character > node.character);
         const diff = this._replaceTerm.length - this.searchTerm.length;
         rightPositionedNodes.map(r => r.character += diff);
     }
 
-    protected async replaceResult(node: TreeNode) {
+    /**
+     * Replace text either in all search matches under a node or in all search matches, and save the changes.
+     * @param node - node in the tree widget in which the "replace all" is performed.
+     * @param {boolean} replaceOne - whether the function is to replace all matches under a node. If it is false, replace all.
+     */
+    protected async replaceResult(node: TreeNode, replaceOne: boolean): Promise<void> {
         const toReplace: SearchInWorkspaceResultLineNode[] = [];
         if (SearchInWorkspaceRootFolderNode.is(node)) {
-            node.children.forEach(fileNode => this.replaceResult(fileNode));
+            node.children.forEach(fileNode => this.replaceResult(fileNode, replaceOne));
         } else if (SearchInWorkspaceFileNode.is(node)) {
             toReplace.push(...node.children);
         } else if (SearchInWorkspaceResultLineNode.is(node)) {
@@ -473,8 +500,11 @@ export class SearchInWorkspaceResultTreeWidget extends TreeWidget {
         }
 
         if (toReplace.length > 0) {
-            const widget = await this.doOpen(toReplace[0]);
-            const source = widget.editor.document.getText();
+            // Store the state of all tracked editors before another editor widget might be created for text replacing.
+            const trackedEditors: EditorWidget[] = this.editorManager.all;
+            // Open the file only if the function is called to replace all matches under a specific node.
+            const widget: EditorWidget = replaceOne ? await this.doOpen(toReplace[0]) : await this.doGetWidget(toReplace[0]);
+            const source: string = widget.editor.document.getText();
             const replaceOperations = toReplace.map(resultLineNode => ({
                 text: this._replaceTerm,
                 range: {
@@ -488,15 +518,24 @@ export class SearchInWorkspaceResultTreeWidget extends TreeWidget {
                     }
                 }
             } as ReplaceOperation));
+            // Replace the text.
             await widget.editor.replaceText({
                 source,
                 replaceOperations
             });
+            // Save the text replacement changes in the editor.
+            await widget.saveable.save();
+            // Dispose the widget if it is not opened but created for `replaceAll`.
+            if (!replaceOne) {
+                if (trackedEditors.indexOf(widget) === -1) {
+                    widget.dispose();
+                }
+            }
         }
     }
 
     protected readonly remove = (node: TreeNode, e: React.MouseEvent<HTMLElement>) => this.doRemove(node, e);
-    protected doRemove(node: TreeNode, e: React.MouseEvent<HTMLElement>) {
+    protected doRemove(node: TreeNode, e: React.MouseEvent<HTMLElement>): void {
         this.removeNode(node);
         e.stopPropagation();
     }
@@ -615,6 +654,17 @@ export class SearchInWorkspaceResultTreeWidget extends TreeWidget {
         </React.Fragment>;
     }
 
+    /**
+     * Get the editor widget by the node.
+     * @param {SearchInWorkspaceResultLineNode} node - the node representing a match in the search results.
+     * @returns The editor widget to which the text replace will be done.
+     */
+    protected async doGetWidget(node: SearchInWorkspaceResultLineNode): Promise<EditorWidget> {
+        const fileUri = new URI(node.fileUri);
+        const editorWidget = await this.editorManager.getOrCreateByUri(fileUri);
+        return editorWidget;
+    }
+
     protected async doOpen(node: SearchInWorkspaceResultLineNode, preview: boolean = false): Promise<EditorWidget> {
         let fileUri: URI;
         const resultNode = node.parent;
@@ -666,7 +716,7 @@ export class SearchInWorkspaceResultTreeWidget extends TreeWidget {
         return fileUri.withScheme(MEMORY_TEXT).withQuery(lines.join('\n'));
     }
 
-    protected decorateEditor(node: SearchInWorkspaceFileNode | undefined, editorWidget: EditorWidget) {
+    protected decorateEditor(node: SearchInWorkspaceFileNode | undefined, editorWidget: EditorWidget): void {
         if (!DiffUris.isDiffUri(editorWidget.editor.uri)) {
             const key = `${editorWidget.editor.uri.toString()}#search-in-workspace-matches`;
             const oldDecorations = this.appliedDecorations.get(key) || [];
@@ -707,4 +757,17 @@ export class SearchInWorkspaceResultTreeWidget extends TreeWidget {
         }
         return decorations;
     }
+
+    /**
+     * Compare two normalized strings.
+     *
+     * @param a {string} the first string.
+     * @param b {string} the second string.
+     */
+    private compare(a: string, b: string): number {
+        const itemA: string = a.toLowerCase().trim();
+        const itemB: string = b.toLowerCase().trim();
+        return itemA.localeCompare(itemB);
+    }
+
 }

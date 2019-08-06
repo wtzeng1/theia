@@ -27,7 +27,7 @@ import { CommandRegistry } from '@theia/core/lib/common/command';
 import { MenuModelRegistry, ActionMenuNode, CompositeMenuNode, MenuPath } from '@theia/core/lib/common/menu';
 import { DisposableCollection, Disposable } from '@theia/core/lib/common/disposable';
 import {
-    ApplicationShell, ContextMenuRenderer, SELECTED_CLASS, StorageService,
+    ContextMenuRenderer, SELECTED_CLASS, StorageService,
     ReactWidget, Key, LabelProvider, DiffUris, KeybindingRegistry, Widget, StatefulWidget
 } from '@theia/core/lib/browser';
 import { AlertMessage } from '@theia/core/lib/browser/widgets/alert-message';
@@ -43,20 +43,19 @@ import { ScmResource, ScmResourceGroup } from './scm-provider';
 @injectable()
 export class ScmWidget extends ReactWidget implements StatefulWidget {
 
+    static ID = 'scm-view';
+
     static RESOURCE_GROUP_CONTEXT_MENU = ['RESOURCE_GROUP_CONTEXT_MENU'];
     static RESOURCE_GROUP_INLINE_MENU = ['RESOURCE_GROUP_INLINE_MENU'];
 
     static RESOURCE_INLINE_MENU = ['RESOURCE_INLINE_MENU'];
     static RESOURCE_CONTEXT_MENU = ['RESOURCE_CONTEXT_MENU'];
 
-    protected static LABEL = 'Source Control';
-
     @inject(ScmService) protected readonly scmService: ScmService;
     @inject(CommandRegistry) protected readonly commands: CommandRegistry;
     @inject(KeybindingRegistry) protected readonly keybindings: KeybindingRegistry;
     @inject(MenuModelRegistry) protected readonly menus: MenuModelRegistry;
     @inject(ScmContextKeyService) protected readonly contextKeys: ScmContextKeyService;
-    @inject(ApplicationShell) protected readonly shell: ApplicationShell;
     @inject(ContextMenuRenderer) protected readonly contextMenuRenderer: ContextMenuRenderer;
     @inject(ScmAvatarService) protected readonly avatarService: ScmAvatarService;
     @inject(StorageService) protected readonly storageService: StorageService;
@@ -79,14 +78,9 @@ export class ScmWidget extends ReactWidget implements StatefulWidget {
     constructor() {
         super();
         this.node.tabIndex = 0;
-        this.id = 'theia-scmContainer';
+        this.id = ScmWidget.ID;
         this.addClass('theia-scm');
         this.scrollContainer = ScmWidget.Styles.GROUPS_CONTAINER;
-
-        this.title.iconClass = 'scm-tab-icon';
-        this.title.label = ScmWidget.LABEL;
-        this.title.caption = ScmWidget.LABEL;
-        this.title.closable = true;
     }
 
     @postConstruct()
@@ -100,16 +94,8 @@ export class ScmWidget extends ReactWidget implements StatefulWidget {
         this.toDisposeOnRefresh.dispose();
         this.toDispose.push(this.toDisposeOnRefresh);
         const repository = this.scmService.selectedRepository;
-        this.title.label = ScmWidget.LABEL;
-        if (repository) {
-            this.title.label += ': ' + repository.provider.label;
-        }
-        const area = this.shell.getAreaFor(this);
-        if (area === 'left') {
-            this.shell.leftPanelHandler.refresh();
-        } else if (area === 'right') {
-            this.shell.rightPanelHandler.refresh();
-        }
+        this.title.label = repository ? repository.provider.label : 'no repository opened';
+        this.title.caption = this.title.label;
         this.update();
         if (repository) {
             this.toDisposeOnRefresh.push(repository.onDidChange(() => this.update()));
@@ -448,7 +434,7 @@ export namespace ScmElement {
 
 export class ScmResourceComponent extends ScmElement<ScmResourceComponent.Props> {
 
-    render() {
+    render(): JSX.Element | undefined {
         const { hover } = this.state;
         const { name, repository, resource, labelProvider, commands, menus, contextKeys } = this.props;
         const rootUri = resource.group.provider.rootUri;
@@ -508,7 +494,7 @@ export namespace ScmResourceComponent {
 }
 
 export class ScmResourceGroupsContainer extends React.Component<ScmResourceGroupsContainer.Props> {
-    render() {
+    render(): JSX.Element {
         const { groups } = this.props.repository.provider;
         return <div className={ScmWidget.Styles.GROUPS_CONTAINER + ' ' + ScmWidget.Styles.NO_SELECT}
             style={this.props.style}
@@ -539,7 +525,7 @@ export class ScmResourceGroupsContainer extends React.Component<ScmResourceGroup
             labelProvider={this.props.labelProvider} />;
     }
 
-    componentDidMount() {
+    componentDidMount(): void {
         this.props.addScmListKeyListeners(this.props.id);
     }
 }
@@ -553,7 +539,7 @@ export namespace ScmResourceGroupsContainer {
 
 export class ScmResourceGroupContainer extends ScmElement {
 
-    render() {
+    render(): JSX.Element {
         const { hover } = this.state;
         const { group, menus, commands, contextKeys } = this.props;
         return <div className='changesContainer'>

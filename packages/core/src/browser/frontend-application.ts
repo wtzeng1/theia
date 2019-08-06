@@ -68,6 +68,11 @@ export interface FrontendApplicationContribution {
      * Should return a promise if it runs asynchronously.
      */
     initializeLayout?(app: FrontendApplication): MaybePromise<void>;
+
+    /**
+     * An event is emmited when a layout is initialized, but before the shell is attached.
+     */
+    onDidInitializeLayout?(app: FrontendApplication): MaybePromise<void>;
 }
 
 /**
@@ -77,7 +82,7 @@ export interface FrontendApplicationContribution {
 @injectable()
 export abstract class DefaultFrontendApplicationContribution implements FrontendApplicationContribution {
 
-    initialize() {
+    initialize(): void {
         // NOOP
     }
 
@@ -125,6 +130,7 @@ export class FrontendApplication {
 
         await this.initializeLayout();
         this.stateService.state = 'initialized_layout';
+        await this.fireOnDidInitializeLayout();
 
         await this.revealShell(host);
         this.registerEventListeners();
@@ -162,6 +168,7 @@ export class FrontendApplication {
         });
         window.addEventListener('resize', () => this.shell.update());
         document.addEventListener('keydown', event => this.keybindings.run(event), true);
+        document.addEventListener('touchmove', event => { event.preventDefault(); }, { passive: false });
         // Prevent forward/back navigation by scrolling in OS X
         if (isOSX) {
             document.body.addEventListener('wheel', preventNavigation, { passive: false });
@@ -236,6 +243,16 @@ export class FrontendApplication {
             if (contribution.initializeLayout) {
                 await this.measure(contribution.constructor.name + '.initializeLayout',
                     () => contribution.initializeLayout!(this)
+                );
+            }
+        }
+    }
+
+    protected async fireOnDidInitializeLayout(): Promise<void> {
+        for (const contribution of this.contributions.getContributions()) {
+            if (contribution.onDidInitializeLayout) {
+                await this.measure(contribution.constructor.name + '.onDidInitializeLayout',
+                    () => contribution.onDidInitializeLayout!(this)
                 );
             }
         }

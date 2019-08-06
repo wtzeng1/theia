@@ -89,6 +89,7 @@ body {
 
 .p-Widget {
   font-size: var(--theia-ui-font-size1);
+  color: var(--theia-ui-font-color1);
 }
 
 .p-Widget.p-mod-hidden {
@@ -106,10 +107,11 @@ body {
 }
 
 :focus {
-  outline: none;
-  border-style: solid;
-  border-width: 1px;
-  border-color: var(--theia-accent-color3);
+    outline-width: 1px;
+    outline-style: solid;
+    outline-offset: -1px;
+    opacity: 1 !important;
+    outline-color: var(--theia-accent-color3);
 }
 
 ::selection {
@@ -118,6 +120,7 @@ body {
 
 .p-Widget:focus {
     border: none;
+    outline: none;
 }
 
 button.theia-button, .theia-button {
@@ -196,3 +199,4 @@ textarea {
 @import './notification.css';
 @import './alert-messages.css';
 @import './icons.css';
+@import './widget.css';

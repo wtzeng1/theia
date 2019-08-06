@@ -17,14 +17,15 @@
 import * as path from 'path';
 import * as cp from 'child_process';
 import { injectable, inject, named } from 'inversify';
-import { ILogger, ConnectionErrorHandler, ContributionProvider } from '@theia/core/lib/common';
+import { ILogger, ConnectionErrorHandler, ContributionProvider, MessageService } from '@theia/core/lib/common';
 import { Emitter } from '@theia/core/lib/common/event';
 import { createIpcEnv } from '@theia/core/lib/node/messaging/ipc-protocol';
 import { HostedPluginClient, ServerPluginRunner, PluginMetadata, PluginHostEnvironmentVariable } from '../../common/plugin-protocol';
-import { RPCProtocolImpl } from '../../api/rpc-protocol';
-import { MAIN_RPC_CONTEXT } from '../../api/plugin-api';
+import { RPCProtocolImpl } from '../../common/rpc-protocol';
+import { MAIN_RPC_CONTEXT } from '../../common/plugin-api-rpc';
 import { HostedPluginCliContribution } from './hosted-plugin-cli-contribution';
 import { HostedPluginProcessesCache } from './hosted-plugin-processes-cache';
+import * as psTree from 'ps-tree';
 
 export interface IPCConnectionOptions {
     readonly serverName: string;
@@ -49,9 +50,14 @@ export class HostedPluginProcess implements ServerPluginRunner {
     @named(PluginHostEnvironmentVariable)
     protected readonly pluginHostEnvironmentVariables: ContributionProvider<PluginHostEnvironmentVariable>;
 
+    @inject(MessageService)
+    protected readonly messageService: MessageService;
+
     private childProcess: cp.ChildProcess | undefined;
 
     private client: HostedPluginClient;
+
+    private terminatingPluginServer = false;
 
     private async getClientId(): Promise<number> {
         return await this.pluginProcessCache.getLazyClientId(this.client);
@@ -93,7 +99,7 @@ export class HostedPluginProcess implements ServerPluginRunner {
         }
     }
 
-    public markPluginServerTerminated() {
+    public markPluginServerTerminated(): void {
         if (this.childProcess) {
             this.pluginProcessCache.scheduleChildProcessTermination(this, this.childProcess);
         }
@@ -103,6 +109,8 @@ export class HostedPluginProcess implements ServerPluginRunner {
         if (this.childProcess === undefined) {
             return;
         }
+
+        this.terminatingPluginServer = true;
         // tslint:disable-next-line:no-shadowed-variable
         const cp = this.childProcess;
         this.childProcess = undefined;
@@ -122,15 +130,24 @@ export class HostedPluginProcess implements ServerPluginRunner {
         const hostedPluginManager = rpc.getProxy(MAIN_RPC_CONTEXT.HOSTED_PLUGIN_MANAGER_EXT);
         hostedPluginManager.$stopPlugin('').then(() => {
             emitter.dispose();
-            cp.kill();
+            this.killProcessTree(cp.pid);
         });
+    }
 
+    private killProcessTree(parentPid: number): void {
+        psTree(parentPid, (err: Error, childProcesses: Array<psTree.PS>) => {
+            childProcesses.forEach((p: psTree.PS) => {
+                process.kill(parseInt(p.PID));
+            });
+            process.kill(parentPid);
+        });
     }
 
     public runPluginServer(): void {
         if (this.childProcess) {
             this.terminatePluginServer();
         }
+        this.terminatingPluginServer = false;
         this.childProcess = this.fork({
             serverName: 'hosted-plugin',
             logger: this.logger,
@@ -140,7 +157,7 @@ export class HostedPluginProcess implements ServerPluginRunner {
 
     }
 
-    private linkClientWithChildProcess(childProcess: cp.ChildProcess) {
+    private linkClientWithChildProcess(childProcess: cp.ChildProcess): void {
         childProcess.on('message', message => {
             if (this.client) {
                 this.client.postMessage(message);
@@ -184,9 +201,21 @@ export class HostedPluginProcess implements ServerPluginRunner {
         childProcess.stderr.on('data', data => this.logger.error(`[${options.serverName}: ${childProcess.pid}] ${data.toString().trim()}`));
 
         this.logger.debug(`[${options.serverName}: ${childProcess.pid}] IPC started`);
-        childProcess.once('exit', () => this.logger.debug(`[${options.serverName}: ${childProcess.pid}] IPC exited`));
-
+        childProcess.once('exit', (code: number, signal: string) => this.onChildProcessExit(options.serverName, childProcess.pid, code, signal));
+        childProcess.on('error', err => this.onChildProcessError(err));
         return childProcess;
+    }
+
+    private onChildProcessExit(serverName: string, pid: number, code: number, signal: string): void {
+        if (this.terminatingPluginServer) {
+            return;
+        }
+        this.logger.error(`[${serverName}: ${pid}] IPC exited, with signal: ${signal}, and exit code: ${code}`);
+        this.messageService.error('Plugin runtime crashed unexpectedly, all plugins are not working, please reload...', { timeout: 15 * 60 * 1000 });
+    }
+
+    private onChildProcessError(err: Error): void {
+        this.logger.error(`Error from plugin host: ${err.message}`);
     }
 
     async getExtraPluginMetadata(): Promise<PluginMetadata[]> {

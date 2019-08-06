@@ -16,7 +16,7 @@
 
 import { injectable, inject, named } from 'inversify';
 import { Registry, IOnigLib, IRawGrammar, parseRawGrammar } from 'vscode-textmate';
-import { ILogger, ContributionProvider, Emitter } from '@theia/core';
+import { ILogger, ContributionProvider, Emitter, DisposableCollection, Disposable } from '@theia/core';
 import { FrontendApplicationContribution, isBasicWasmSupported } from '@theia/core/lib/browser';
 import { ThemeService } from '@theia/core/lib/browser/theming';
 import { LanguageGrammarDefinitionContribution, getEncodedLanguageId } from './textmate-contribution';
@@ -58,7 +58,7 @@ export class MonacoTextmateService implements FrontendApplicationContribution {
     @inject(MonacoThemeRegistry)
     protected readonly monacoThemeRegistry: MonacoThemeRegistry;
 
-    initialize() {
+    initialize(): void {
         if (!isBasicWasmSupported) {
             console.log('Textmate support deactivated because WebAssembly is not detected.');
             return;
@@ -74,7 +74,7 @@ export class MonacoTextmateService implements FrontendApplicationContribution {
 
         this.grammarRegistry = new Registry({
             getOnigLib: () => this.onigasmPromise,
-            theme: this.monacoThemeRegistry.getTheme(MonacoThemeRegistry.DARK_DEFAULT_THEME),
+            theme: this.monacoThemeRegistry.getTheme(this.currentEditorTheme),
             loadGrammar: async (scopeName: string) => {
                 const provider = this.textmateRegistry.getProvider(scopeName);
                 if (provider) {
@@ -98,19 +98,38 @@ export class MonacoTextmateService implements FrontendApplicationContribution {
             }
         });
 
-        this.themeService.onThemeChange(themeChange => {
-            const theme = this.monacoThemeRegistry.getTheme(themeChange.newTheme.editorTheme || MonacoThemeRegistry.DARK_DEFAULT_THEME);
-            if (theme) {
-                this.grammarRegistry.setTheme(theme);
-            }
-        });
+        this.updateTheme();
+        this.themeService.onThemeChange(() => this.updateTheme());
 
         for (const { id } of monaco.languages.getLanguages()) {
             monaco.languages.onLanguage(id, () => this.activateLanguage(id));
         }
     }
 
-    async activateLanguage(languageId: string) {
+    protected readonly toDisposeOnUpdateTheme = new DisposableCollection();
+
+    protected updateTheme(): void {
+        this.toDisposeOnUpdateTheme.dispose();
+
+        const currentEditorTheme = this.currentEditorTheme;
+        document.body.classList.add(currentEditorTheme);
+        this.toDisposeOnUpdateTheme.push(Disposable.create(() => document.body.classList.remove(currentEditorTheme)));
+
+        // first update registry to run tokenization with the proper theme
+        const theme = this.monacoThemeRegistry.getTheme(currentEditorTheme);
+        if (theme) {
+            this.grammarRegistry.setTheme(theme);
+        }
+
+        // then trigger tokenization by setting monaco theme
+        monaco.editor.setTheme(currentEditorTheme);
+    }
+
+    protected get currentEditorTheme(): string {
+        return this.themeService.getCurrentTheme().editorTheme || MonacoThemeRegistry.DARK_DEFAULT_THEME;
+    }
+
+    async activateLanguage(languageId: string): Promise<void> {
         if (this._activatedLanguages.has(languageId)) {
             return;
         }

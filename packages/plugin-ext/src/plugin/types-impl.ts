@@ -22,7 +22,7 @@ import URI from 'vscode-uri';
 import { relative } from '../common/paths-util';
 import { startsWithIgnoreCase } from '../common/strings';
 import { MarkdownString, isMarkdownString } from './markdown-string';
-import { SymbolKind } from '../api/model';
+import { SymbolKind } from '../common/plugin-api-rpc-model';
 
 export class Disposable {
     private disposable: undefined | (() => void);
@@ -99,7 +99,7 @@ export enum TextEditorSelectionChangeKind {
 }
 
 export namespace TextEditorSelectionChangeKind {
-    export function fromValue(s: string | undefined) {
+    export function fromValue(s: string | undefined): TextEditorSelectionChangeKind | undefined {
         switch (s) {
             case 'keyboard': return TextEditorSelectionChangeKind.Keyboard;
             case 'mouse': return TextEditorSelectionChangeKind.Mouse;
@@ -1113,7 +1113,7 @@ export class WorkspaceEdit implements theia.WorkspaceEdit {
 
 export class TreeItem {
 
-    label?: string;
+    label?: string | theia.TreeItemLabel;
 
     id?: string;
 
@@ -1127,9 +1127,9 @@ export class TreeItem {
 
     contextValue?: string;
 
-    constructor(label: string, collapsibleState?: theia.TreeItemCollapsibleState)
+    constructor(label: string | theia.TreeItemLabel, collapsibleState?: theia.TreeItemCollapsibleState)
     constructor(resourceUri: URI, collapsibleState?: theia.TreeItemCollapsibleState)
-    constructor(arg1: string | URI, public collapsibleState: theia.TreeItemCollapsibleState = TreeItemCollapsibleState.None) {
+    constructor(arg1: string | theia.TreeItemLabel | URI, public collapsibleState: theia.TreeItemCollapsibleState = TreeItemCollapsibleState.None) {
         if (arg1 instanceof URI) {
             this.resourceUri = arg1;
         } else {
@@ -1229,6 +1229,11 @@ export enum FileChangeType {
 export enum CommentThreadCollapsibleState {
     Collapsed = 0,
     Expanded = 1
+}
+
+export enum CommentMode {
+    Editing = 0,
+    Preview = 1
 }
 
 export class FileSystemError extends Error {
@@ -1510,7 +1515,7 @@ export class TaskGroup {
     public static Rebuild: TaskGroup = new TaskGroup('rebuild', 'Rebuild');
     public static Test: TaskGroup = new TaskGroup('test', 'Test');
 
-    public static from(value: string) {
+    public static from(value: string): TaskGroup | undefined {
         switch (value) {
             case 'clean':
                 return TaskGroup.Clean;
@@ -1733,12 +1738,14 @@ export class Task {
         if (this.taskExecution instanceof ProcessExecution) {
             Object.assign(this.taskDefinition, {
                 type: 'process',
-                id: this.taskExecution.computeId()
+                id: this.taskExecution.computeId(),
+                taskType: this.taskDefinition!.type
             });
         } else if (this.taskExecution instanceof ShellExecution) {
             Object.assign(this.taskDefinition, {
                 type: 'shell',
-                id: this.taskExecution.computeId()
+                id: this.taskExecution.computeId(),
+                taskType: this.taskDefinition!.type
             });
         }
     }

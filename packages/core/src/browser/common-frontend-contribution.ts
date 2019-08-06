@@ -35,6 +35,8 @@ import { ResourceContextKey } from './resource-context-key';
 import { UriSelection } from '../common/selection';
 import { StorageService } from './storage-service';
 import { Navigatable } from './navigatable';
+import { QuickViewService } from './quick-view-service';
+import { PrefixQuickOpenService } from './quick-open';
 
 export namespace CommonMenus {
 
@@ -156,6 +158,11 @@ export namespace CommonCommands {
         category: VIEW_CATEGORY,
         label: 'Toggle Maximized'
     };
+    export const OPEN_VIEW: Command = {
+        id: 'core.openView',
+        category: VIEW_CATEGORY,
+        label: 'Open View...'
+    };
 
     export const SAVE: Command = {
         id: 'core.save',
@@ -224,6 +231,12 @@ export class CommonFrontendContribution implements FrontendApplicationContributi
     @inject(StorageService)
     protected readonly storageService: StorageService;
 
+    @inject(QuickViewService)
+    protected readonly quickView: QuickViewService;
+
+    @inject(PrefixQuickOpenService)
+    protected readonly quickOpen: PrefixQuickOpenService;
+
     @postConstruct()
     protected init(): void {
         this.contextKeyService.createKey<boolean>('isLinux', OS.type() === OS.Type.Linux);
@@ -234,12 +247,12 @@ export class CommonFrontendContribution implements FrontendApplicationContributi
         this.registerCtrlWHandling();
     }
 
-    onStart() {
+    onStart(): void {
         this.storageService.getData<{ recent: Command[] }>(RECENT_COMMANDS_STORAGE_KEY, { recent: [] })
             .then(tasks => this.commandRegistry.recent = tasks.recent);
     }
 
-    onStop() {
+    onStop(): void {
         const recent = this.commandRegistry.recent;
         this.storageService.setData<{ recent: Command[] }>(RECENT_COMMANDS_STORAGE_KEY, { recent });
     }
@@ -347,6 +360,10 @@ export class CommonFrontendContribution implements FrontendApplicationContributi
             commandId: CommonCommands.ABOUT_COMMAND.id,
             label: 'About',
             order: '9'
+        });
+
+        registry.registerMenuAction(CommonMenus.VIEW_PRIMARY, {
+            commandId: CommonCommands.OPEN_VIEW.id
         });
     }
 
@@ -486,6 +503,10 @@ export class CommonFrontendContribution implements FrontendApplicationContributi
         commandRegistry.registerCommand(CommonCommands.ABOUT_COMMAND, {
             execute: () => this.openAbout()
         });
+
+        commandRegistry.registerCommand(CommonCommands.OPEN_VIEW, {
+            execute: () => this.quickOpen.open(this.quickView.prefix)
+        });
     }
 
     private findTabBar(event?: Event): TabBar<Widget> | undefined {
@@ -617,7 +638,7 @@ export class CommonFrontendContribution implements FrontendApplicationContributi
         );
     }
 
-    protected async openAbout() {
+    protected async openAbout(): Promise<void> {
         this.aboutDialog.open();
     }
 
@@ -630,8 +651,8 @@ export class CommonFrontendContribution implements FrontendApplicationContributi
      * Chrome doesn't let us rebind or prevent default the keybinding, so this
      * at least doesn't close the window immediately.
      */
-    protected registerCtrlWHandling() {
-        function isCtrlCmd(event: KeyboardEvent) {
+    protected registerCtrlWHandling(): void {
+        function isCtrlCmd(event: KeyboardEvent): boolean {
             return (isOSX && event.metaKey) || (!isOSX && event.ctrlKey);
         }
 
@@ -644,7 +665,7 @@ export class CommonFrontendContribution implements FrontendApplicationContributi
         });
     }
 
-    onWillStop() {
+    onWillStop(): true | undefined {
         try {
             if (this.shouldPreventClose || this.shell.canSaveAll()) {
                 return true;

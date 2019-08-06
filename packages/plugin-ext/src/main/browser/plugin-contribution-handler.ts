@@ -16,9 +16,9 @@
 
 import { injectable, inject } from 'inversify';
 import { ITokenTypeMap, IEmbeddedLanguagesMap, StandardTokenType } from 'vscode-textmate';
-import { TextmateRegistry, getEncodedLanguageId, MonacoTextmateService } from '@theia/monaco/lib/browser/textmate';
+import { TextmateRegistry, getEncodedLanguageId, MonacoTextmateService, GrammarDefinition } from '@theia/monaco/lib/browser/textmate';
 import { MenusContributionPointHandler } from './menus/menus-contribution-handler';
-import { ViewRegistry } from './view/view-registry';
+import { PluginViewRegistry } from './view/plugin-view-registry';
 import { PluginContribution, IndentationRules, FoldingRules, ScopeMap } from '../../common';
 import { PreferenceSchemaProvider } from '@theia/core/lib/browser';
 import { PreferenceSchema, PreferenceSchemaProperties } from '@theia/core/lib/browser/preferences';
@@ -28,17 +28,23 @@ import { PluginSharedStyle } from './plugin-shared-style';
 import { CommandRegistry, Command, CommandHandler } from '@theia/core/lib/common/command';
 import { Disposable, DisposableCollection } from '@theia/core/lib/common/disposable';
 import { Emitter } from '@theia/core/lib/common/event';
+import { TaskDefinitionRegistry, ProblemMatcherRegistry, ProblemPatternRegistry } from '@theia/task/lib/browser';
+import { MonacoEditor } from '@theia/monaco/lib/browser/monaco-editor';
+import { EditorManager } from '@theia/editor/lib/browser';
 
 @injectable()
 export class PluginContributionHandler {
 
     private injections = new Map<string, string[]>();
 
+    @inject(EditorManager)
+    private readonly editorManager: EditorManager;
+
     @inject(TextmateRegistry)
     private readonly grammarsRegistry: TextmateRegistry;
 
-    @inject(ViewRegistry)
-    private readonly viewRegistry: ViewRegistry;
+    @inject(PluginViewRegistry)
+    private readonly viewRegistry: PluginViewRegistry;
 
     @inject(MenusContributionPointHandler)
     private readonly menusContributionHandler: MenusContributionPointHandler;
@@ -60,6 +66,15 @@ export class PluginContributionHandler {
 
     @inject(PluginSharedStyle)
     protected readonly style: PluginSharedStyle;
+
+    @inject(TaskDefinitionRegistry)
+    protected readonly taskDefinitionRegistry: TaskDefinitionRegistry;
+
+    @inject(ProblemMatcherRegistry)
+    protected readonly problemMatcherRegistry: ProblemMatcherRegistry;
+
+    @inject(ProblemPatternRegistry)
+    protected readonly problemPatternRegistry: ProblemPatternRegistry;
 
     protected readonly commandHandlers = new Map<string, CommandHandler['execute'] | undefined>();
 
@@ -99,7 +114,7 @@ export class PluginContributionHandler {
             }
         }
 
-        if (contributions.grammars) {
+        if (contributions.grammars && contributions.grammars.length) {
             for (const grammar of contributions.grammars) {
                 if (grammar.injectTo) {
                     for (const injectScope of grammar.injectTo) {
@@ -113,7 +128,7 @@ export class PluginContributionHandler {
                 }
 
                 this.grammarsRegistry.registerTextmateGrammarScope(grammar.scope, {
-                    async getGrammarDefinition() {
+                    async getGrammarDefinition(): Promise<GrammarDefinition> {
                         return {
                             format: grammar.format,
                             content: grammar.grammar || '',
@@ -131,16 +146,9 @@ export class PluginContributionHandler {
                     monaco.languages.onLanguage(grammar.language, () => this.monacoTextmateService.activateLanguage(grammar.language!));
                 }
             }
-        }
-
-        if (contributions.viewsContainers) {
-            for (const location in contributions.viewsContainers) {
-                if (contributions.viewsContainers!.hasOwnProperty(location)) {
-                    const viewContainers = contributions.viewsContainers[location];
-                    viewContainers.forEach(container => {
-                        const views = contributions.views && contributions.views[container.id] ? contributions.views[container.id] : [];
-                        this.viewRegistry.registerViewContainer(location, container, views);
-                    });
+            for (const editor of MonacoEditor.getAll(this.editorManager)) {
+                if (editor.languageAutoDetected) {
+                    editor.detectLanguage();
                 }
             }
         }
@@ -148,6 +156,25 @@ export class PluginContributionHandler {
         this.registerCommands(contributions);
         this.menusContributionHandler.handle(contributions);
         this.keybindingsContributionHandler.handle(contributions);
+
+        if (contributions.viewsContainers) {
+            for (const location in contributions.viewsContainers) {
+                if (contributions.viewsContainers!.hasOwnProperty(location)) {
+                    for (const viewContainer of contributions.viewsContainers[location]) {
+                        this.viewRegistry.registerViewContainer(location, viewContainer);
+                    }
+                }
+            }
+        }
+        if (contributions.views) {
+            // tslint:disable-next-line:forin
+            for (const location in contributions.views) {
+                for (const view of contributions.views[location]) {
+                    this.viewRegistry.registerView(location, view);
+                }
+            }
+        }
+
         if (contributions.snippets) {
             for (const snippet of contributions.snippets) {
                 this.snippetSuggestProvider.fromURI(snippet.uri, {
@@ -155,6 +182,18 @@ export class PluginContributionHandler {
                     source: snippet.source
                 });
             }
+        }
+
+        if (contributions.taskDefinitions) {
+            contributions.taskDefinitions.forEach(def => this.taskDefinitionRegistry.register(def));
+        }
+
+        if (contributions.problemPatterns) {
+            contributions.problemPatterns.forEach(pattern => this.problemPatternRegistry.register(pattern));
+        }
+
+        if (contributions.problemMatchers) {
+            contributions.problemMatchers.forEach(matcher => this.problemMatcherRegistry.register(matcher));
         }
     }
 
@@ -184,9 +223,9 @@ export class PluginContributionHandler {
                 return handler(...args);
             },
             // Always enabled - a command can be executed programmatically or via the commands palette.
-            isEnabled() { return true; },
+            isEnabled(): boolean { return true; },
             // Visibility rules are defined via the `menus` contribution point.
-            isVisible() { return true; }
+            isVisible(): boolean { return true; }
         }));
         this.commandHandlers.set(command.id, undefined);
         toDispose.push(Disposable.create(() => this.commandHandlers.delete(command.id)));

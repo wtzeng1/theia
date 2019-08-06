@@ -62,7 +62,7 @@ import { DiffUriLabelProviderContribution } from './diff-uris';
 import { ApplicationServer, applicationPath } from '../common/application-protocol';
 import { WebSocketConnectionProvider } from './messaging';
 import { AboutDialog, AboutDialogProps } from './about-dialog';
-import { EnvVariablesServer, envVariablesPath } from './../common/env-variables';
+import { EnvVariablesServer, envVariablesPath, EnvVariable } from './../common/env-variables';
 import { FrontendApplicationStateService } from './frontend-application-state';
 import { JsonSchemaStore } from './json-schema-store';
 import { TabBarToolbarRegistry, TabBarToolbarContribution, TabBarToolbarFactory, TabBarToolbar } from './shell/tab-bar-toolbar';
@@ -74,8 +74,8 @@ import { ResourceContextKey } from './resource-context-key';
 import { KeyboardLayoutService } from './keyboard/keyboard-layout-service';
 import { MimeService } from './mime-service';
 import { ApplicationShellMouseTracker } from './shell/application-shell-mouse-tracker';
-import { ViewContainer } from './view-container';
-import { Widget } from './widgets';
+import { ViewContainer, ViewContainerIdentifier } from './view-container';
+import { QuickViewService } from './quick-view-service';
 
 export const frontendApplicationModule = new ContainerModule((bind, unbind, isBound, rebind) => {
     const themeService = ThemeService.get();
@@ -204,7 +204,7 @@ export const frontendApplicationModule = new ContainerModule((bind, unbind, isBo
         // let's reuse a simple and cheap service from this package
         const envServer: EnvVariablesServer = ctx.container.get(EnvVariablesServer);
         return {
-            ping() {
+            ping(): Promise<EnvVariable | undefined> {
                 return envServer.getValue('does_not_matter');
             }
         };
@@ -242,21 +242,15 @@ export const frontendApplicationModule = new ContainerModule((bind, unbind, isBo
     bind(ApplicationShellMouseTracker).toSelf().inSingletonScope();
     bind(FrontendApplicationContribution).toService(ApplicationShellMouseTracker);
 
-    bind(ViewContainer.Services).toSelf();
-    bind(ViewContainer.Factory).toFactory(context => (...descriptors: ViewContainer.Factory.WidgetDescriptor[]) => {
-        const { container } = context;
-        const services = container.get(ViewContainer.Services);
-        const inputs: Array<{ widget: Widget, options?: ViewContainer.Factory.WidgetOptions }> = [];
-        for (const descriptor of descriptors) {
-            const { widget, options } = descriptor;
-            if (widget instanceof Widget) {
-                inputs.push({ widget, options });
-            } else {
-                inputs.push({ widget: container.get(widget), options });
-            }
-        }
-        return new ViewContainer(services, ...inputs);
+    bind(ViewContainer.Factory).toFactory(context => (options: ViewContainerIdentifier) => {
+        const container = context.container.createChild();
+        container.bind(ViewContainerIdentifier).toConstantValue(options);
+        container.bind(ViewContainer).toSelf().inSingletonScope();
+        return container.get(ViewContainer);
     });
+
+    bind(QuickViewService).toSelf().inSingletonScope();
+    bind(QuickOpenContribution).toService(QuickViewService);
 });
 
 export function bindMessageService(bind: interfaces.Bind): interfaces.BindingWhenOnSyntax<MessageService> {
@@ -279,7 +273,7 @@ export function bindPreferenceService(bind: interfaces.Bind): void {
     bindPreferenceSchemaProvider(bind);
 }
 
-export function bindResourceProvider(bind: interfaces.Bind) {
+export function bindResourceProvider(bind: interfaces.Bind): void {
     bind(DefaultResourceProvider).toSelf().inSingletonScope();
     bind(ResourceProvider).toProvider(context => uri => context.container.get(DefaultResourceProvider).get(uri));
     bindContributionProvider(bind, ResourceResolver);

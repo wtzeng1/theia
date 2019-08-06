@@ -16,7 +16,7 @@
 
 import { injectable } from 'inversify';
 import { Emitter, Event } from '@theia/core/lib/common/event';
-import { TaskClient, TaskExitedEvent, TaskInfo } from './task-protocol';
+import { TaskClient, TaskExitedEvent, TaskInfo, TaskOutputProcessedEvent } from './task-protocol';
 
 @injectable()
 export class TaskWatcher {
@@ -26,18 +26,22 @@ export class TaskWatcher {
         const exitEmitter = this.onTaskExitEmitter;
         const taskProcessStartedEmitter = this.onDidStartTaskProcessEmitter;
         const taskProcessEndedEmitter = this.onDidEndTaskProcessEmitter;
+        const outputProcessedEmitter = this.onOutputProcessedEmitter;
         return {
-            onTaskCreated(event: TaskInfo) {
+            onTaskCreated(event: TaskInfo): void {
                 newTaskEmitter.fire(event);
             },
-            onTaskExit(event: TaskExitedEvent) {
+            onTaskExit(event: TaskExitedEvent): void {
                 exitEmitter.fire(event);
             },
-            onDidStartTaskProcess(event: TaskInfo) {
+            onDidStartTaskProcess(event: TaskInfo): void {
                 taskProcessStartedEmitter.fire(event);
             },
-            onDidEndTaskProcess(event: TaskExitedEvent) {
+            onDidEndTaskProcess(event: TaskExitedEvent): void {
                 taskProcessEndedEmitter.fire(event);
+            },
+            onDidProcessTaskOutput(event: TaskOutputProcessedEvent): void {
+                outputProcessedEmitter.fire(event);
             }
         };
     }
@@ -46,6 +50,7 @@ export class TaskWatcher {
     protected onTaskExitEmitter = new Emitter<TaskExitedEvent>();
     protected onDidStartTaskProcessEmitter = new Emitter<TaskInfo>();
     protected onDidEndTaskProcessEmitter = new Emitter<TaskExitedEvent>();
+    protected onOutputProcessedEmitter = new Emitter<TaskOutputProcessedEvent>();
 
     get onTaskCreated(): Event<TaskInfo> {
         return this.onTaskCreatedEmitter.event;
@@ -58,5 +63,8 @@ export class TaskWatcher {
     }
     get onDidEndTaskProcess(): Event<TaskExitedEvent> {
         return this.onDidEndTaskProcessEmitter.event;
+    }
+    get onOutputProcessed(): Event<TaskOutputProcessedEvent> {
+        return this.onOutputProcessedEmitter.event;
     }
 }

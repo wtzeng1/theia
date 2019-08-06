@@ -26,7 +26,7 @@ import { WebviewWidget } from '@theia/plugin-ext/lib/main/browser/webview/webvie
 import { ApplicationShell, NavigatableWidget, OpenerService, open, Saveable } from '@theia/core/lib/browser';
 import { ResourceProvider } from '@theia/core';
 import { ViewColumn } from '@theia/plugin-ext/lib/plugin/types-impl';
-import { TextDocumentShowOptions } from '@theia/plugin-ext/lib/api/model';
+import { TextDocumentShowOptions } from '@theia/plugin-ext/lib/common/plugin-api-rpc-model';
 import { fromViewColumn } from '@theia/plugin-ext/lib/plugin/type-converters';
 import { WorkspaceCommands } from '@theia/workspace/lib/browser';
 import { createUntitledResource } from '@theia/plugin-ext/lib/main/browser/editor/untitled-resource';
@@ -317,7 +317,7 @@ export class PluginVscodeCommandsContribution implements CommandContribution {
          */
     }
 
-    private getHtml(body: String) {
+    private getHtml(body: String): string {
         return `<!DOCTYPE html><html><head></head>${body}</html>`;
     }
 

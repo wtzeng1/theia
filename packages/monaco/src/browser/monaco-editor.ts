@@ -109,7 +109,7 @@ export class MonacoEditor implements TextEditor {
 
     protected addHandlers(codeEditor: IStandaloneCodeEditor): void {
         this.toDispose.push(codeEditor.onDidChangeModelLanguage(e =>
-            this.onLanguageChangedEmitter.fire(e.newLanguage)
+            this.fireLanguageChanged(e.newLanguage)
         ));
         this.toDispose.push(codeEditor.onDidChangeConfiguration(() => this.refresh()));
         this.toDispose.push(codeEditor.onDidChangeModel(() => this.refresh()));
@@ -158,7 +158,7 @@ export class MonacoEditor implements TextEditor {
         };
     }
 
-    get onDispose() {
+    get onDispose(): Event<void> {
         return this.toDispose.onDispose;
     }
 
@@ -230,7 +230,7 @@ export class MonacoEditor implements TextEditor {
         }
     }
 
-    focus() {
+    focus(): void {
         this.editor.focus();
     }
 
@@ -280,11 +280,11 @@ export class MonacoEditor implements TextEditor {
         return this.editor.getContribution<RenameController>('editor.contrib.renameController')._renameInputVisible.get();
     }
 
-    dispose() {
+    dispose(): void {
         this.toDispose.dispose();
     }
 
-    getControl() {
+    getControl(): IStandaloneCodeEditor {
         return this.editor;
     }
 
@@ -300,7 +300,7 @@ export class MonacoEditor implements TextEditor {
         this.resize(dimension);
     }
 
-    protected autoresize() {
+    protected autoresize(): void {
         if (this.autoSizing) {
             // tslint:disable-next-line:no-null-keyword
             this.resize(null);
@@ -447,18 +447,31 @@ export class MonacoEditor implements TextEditor {
         this.editor.restoreViewState(state as monaco.editor.ICodeEditorViewState);
     }
 
+    /* `true` because it is derived from an URI during the instantiation */
+    protected _languageAutoDetected = true;
+
+    get languageAutoDetected(): boolean {
+        return this._languageAutoDetected;
+    }
+
     async detectLanguage(): Promise<void> {
         const filename = this.uri.path.toString();
         const modeService = monaco.services.StaticServices.modeService.get();
         const firstLine = this.document.textEditorModel.getLineContent(1);
         const mode = await modeService.getOrCreateModeByFilenameOrFirstLine(filename, firstLine);
         this.setLanguage(mode.getId());
+        this._languageAutoDetected = true;
     }
 
     setLanguage(languageId: string): void {
         for (const document of this.documents) {
             monaco.editor.setModelLanguage(document.textEditorModel, languageId);
         }
+    }
+
+    protected fireLanguageChanged(langaugeId: string): void {
+        this._languageAutoDetected = false;
+        this.onLanguageChangedEmitter.fire(langaugeId);
     }
 
     getResourceUri(): URI {

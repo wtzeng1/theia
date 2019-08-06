@@ -23,7 +23,7 @@ import { deepClone } from '@theia/core/lib/common/objects';
 import { injectable, unmanaged } from 'inversify';
 
 namespace nls {
-    export function localize(key: string, _default: string) {
+    export function localize(key: string, _default: string): string {
         return _default;
     }
 }
@@ -229,12 +229,22 @@ export abstract class AbstractVSCodeDebugAdapterContribution implements DebugAda
         if (runtime && runtime.indexOf('./') === 0) {
             runtime = path.join(this.extensionPath, runtime);
         }
+
         const runtimeArgs = info && info.runtimeArgs || contribution.runtimeArgs || [];
-        const command = runtime ? runtime : program;
-        const args = runtime ? [...runtimeArgs, program, ...programArgs] : programArgs;
-        return {
-            command,
-            args
-        };
+        if (runtime === 'node') {
+            const modulePath = program;
+            return {
+                modulePath: modulePath,
+                execArgv: runtimeArgs,
+                args: programArgs
+            };
+        } else {
+            const command = runtime ? runtime : program;
+            const args = runtime ? [...runtimeArgs, program, ...programArgs] : programArgs;
+            return {
+                command,
+                args
+            };
+        }
     }
 }

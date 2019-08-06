@@ -27,7 +27,7 @@ import {
 import { FileTreeWidget, FileNode, DirNode } from '@theia/filesystem/lib/browser';
 import { WorkspaceService, WorkspaceCommands } from '@theia/workspace/lib/browser';
 import { ApplicationShell } from '@theia/core/lib/browser/shell/application-shell';
-import { WorkspaceNode } from './navigator-tree';
+import { WorkspaceNode, WorkspaceRootNode } from './navigator-tree';
 import { FileNavigatorModel } from './navigator-model';
 import { FileSystem } from '@theia/filesystem/lib/common/filesystem';
 import { isOSX, environment } from '@theia/core';
@@ -35,7 +35,8 @@ import * as React from 'react';
 import { NavigatorContextKeyService } from './navigator-context-key-service';
 
 export const FILE_NAVIGATOR_ID = 'files';
-export const LABEL = 'Explorer';
+export const EXPLORER_VIEW_CONTAINER_ID = 'explorer-view-container';
+export const LABEL = 'No folder opened';
 export const CLASS = 'theia-Files';
 
 @injectable()
@@ -58,10 +59,6 @@ export class FileNavigatorWidget extends FileTreeWidget {
     ) {
         super(props, model, contextMenuRenderer);
         this.id = FILE_NAVIGATOR_ID;
-        this.title.label = LABEL;
-        this.title.caption = LABEL;
-        this.title.closable = true;
-        this.title.iconClass = 'navigator-tab-icon';
         this.addClass(CLASS);
         this.initialize();
     }
@@ -88,6 +85,9 @@ export class FileNavigatorWidget extends FileTreeWidget {
 
     protected async initialize(): Promise<void> {
         await this.model.updateRoot();
+        if (this.model.selectedNodes.length) {
+            return;
+        }
         const root = this.model.root;
         if (CompositeTreeNode.is(root) && root.children.length === 1) {
             const child = root.children[0];
@@ -96,6 +96,22 @@ export class FileNavigatorWidget extends FileTreeWidget {
                 this.model.expandNode(child);
             }
         }
+    }
+
+    protected doUpdateRows(): void {
+        super.doUpdateRows();
+        this.title.label = LABEL;
+        if (WorkspaceNode.is(this.model.root)) {
+            if (this.model.root.name === WorkspaceNode.name) {
+                const rootNode = this.model.root.children[0];
+                if (WorkspaceRootNode.is(rootNode)) {
+                    this.title.label = rootNode.name;
+                }
+            } else {
+                this.title.label = this.model.root.name;
+            }
+        }
+        this.title.caption = this.title.label;
     }
 
     protected enableDndOnMainPanel(): void {
@@ -116,7 +132,7 @@ export class FileNavigatorWidget extends FileTreeWidget {
 
     protected getContainerTreeNode(): TreeNode | undefined {
         const root = this.model.root;
-        if (this.workspaceService.isMultiRootWorkspaceEnabled) {
+        if (this.workspaceService.isMultiRootWorkspaceOpened) {
             return root;
         }
         if (WorkspaceNode.is(root)) {
@@ -177,12 +193,12 @@ export class FileNavigatorWidget extends FileTreeWidget {
     protected canOpenWorkspaceFileAndFolder: boolean = isOSX || !environment.electron.is();
 
     protected readonly openWorkspace = () => this.doOpenWorkspace();
-    protected doOpenWorkspace() {
+    protected doOpenWorkspace(): void {
         this.commandService.executeCommand(WorkspaceCommands.OPEN_WORKSPACE.id);
     }
 
     protected readonly openFolder = () => this.doOpenFolder();
-    protected doOpenFolder() {
+    protected doOpenFolder(): void {
         this.commandService.executeCommand(WorkspaceCommands.OPEN_FOLDER.id);
     }
 

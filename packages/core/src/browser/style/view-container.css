@@ -14,6 +14,12 @@
  * SPDX-License-Identifier: EPL-2.0 OR GPL-2.0 WITH Classpath-exception-2.0
  ********************************************************************************/
 
+ :root {
+    --theia-view-container-title-height: 22px;
+    --theia-view-container-content-height: calc(100% - var(--theia-view-container-title-height));
+}
+
+
 .theia-view-container {
     height: 100%;
     display: flex;
@@ -49,7 +55,7 @@
     display: flex;
     align-items: center;
     background: var(--theia-menu-color0);
-    line-height: 22px;
+    line-height: var(--theia-view-container-title-height);
     z-index: 10;
 }
 
@@ -67,25 +73,14 @@
 }
 
 .theia-view-container .part > .header .label {
-    width: 100%;
+    flex: 1;
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
 }
 
-.theia-view-container .part > .header .element {
-    min-width: 16px;
-    min-height: 16px;
-    padding-left: calc(var(--theia-ui-padding)*2);
-    display: none;
-}
-
-.theia-view-container .part:hover > .header .element {
-    display: block;
-}
-
 .theia-view-container .part > .body {
-    height: 100%;
+    height: var(--theia-view-container-content-height);
     min-width: 50px;
     min-height: 50px;
 }
@@ -116,4 +111,16 @@
     font-size: var(--theia-ui-font-size0);
     font-weight: 500;
     padding: 0 var(--theia-ui-padding) 0 var(--theia-ui-padding);
+}
+
+.p-TabBar-toolbar.theia-view-container-part-title {
+    padding: 0px;
+    padding-right: calc(var(--theia-ui-padding)*2/3);
+}
+
+.theia-view-container-part-title .item > div {
+    height: 16px;
+    width: 16px;
+    background-size: 16px;
+    line-height: 16px;
 }

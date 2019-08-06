@@ -16,7 +16,7 @@
 
 import * as theia from '@theia/plugin';
 import { Event, Emitter } from '@theia/core/lib/common/event';
-import { StorageMain, StorageExt } from '../api/plugin-api';
+import { StorageMain, StorageExt } from '../common/plugin-api-rpc';
 import { KeysToAnyValues, KeysToKeysToAnyValue } from '../common/types';
 
 export class Memento implements theia.Memento {
@@ -40,7 +40,7 @@ export class Memento implements theia.Memento {
     get<T>(key: string): T | undefined;
     get<T>(key: string, defaultValue: T): T;
     get<T>(key: string, defaultValue?: T): T | undefined {
-        if (key && this.cache[key]) {
+        if (key && this.cache.hasOwnProperty(key)) {
             return this.cache[key];
         } else {
             return defaultValue;

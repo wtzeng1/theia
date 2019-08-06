@@ -84,7 +84,7 @@ export class ScmAmendComponent extends React.Component<ScmAmendComponentProps, S
 
     protected readonly toDisposeOnUnmount = new DisposableCollection();
 
-    async componentDidMount() {
+    async componentDidMount(): Promise<void> {
         const lastCommit = await this.getLastCommit();
         this.setState({ amendingCommits: await this.buildAmendingList(lastCommit ? lastCommit.commit : undefined), lastCommit });
 
@@ -93,32 +93,31 @@ export class ScmAmendComponent extends React.Component<ScmAmendComponentProps, S
         );
     }
 
-    componentWillUnmount() {
+    componentWillUnmount(): void {
         this.toDisposeOnUnmount.dispose();
     }
 
-    async fetchStatusAndSetState() {
+    async fetchStatusAndSetState(): Promise<void> {
         const nextCommit = await this.getLastCommit();
         if (nextCommit && this.state.lastCommit && nextCommit.commit.id === this.state.lastCommit.commit.id) {
             // No change here
         } else if (nextCommit === undefined && this.state.lastCommit === undefined) {
             // No change here
         } else if (this.transitionHint === 'none') {
-            if (this.state.lastCommit) {
-                // If the 'last' commit changes, but we are not expecting an 'amend'
-                // or 'unamend' to occur, then we clear out the list of amended commits.
-                // This is because an unexpected change has happened to the repoistory,
-                // perhaps the user commited, merged, or something.  The amended commits
-                // will no longer be valid.
-                await this.clearAmendingCommits();
-                // There is a change to the last commit, but no transition hint so
-                // the view just updates without transition.
-                this.setState({ amendingCommits: [], lastCommit: nextCommit });
-            } else {
-                // There should always be a previous 'last commit'
-                throw new Error('unexpected state');
-                // this.setState({ amendingCommits: await this.buildAmendingList(), lastCommit: nextCommit });
-            }
+            // If the 'last' commit changes, but we are not expecting an 'amend'
+            // or 'unamend' to occur, then we clear out the list of amended commits.
+            // This is because an unexpected change has happened to the repoistory,
+            // perhaps the user commited, merged, or something.  The amended commits
+            // will no longer be valid.
+
+            // Note that there may or may not have been a previous lastCommit (if the
+            // repository was previously empty with no initial commit then lastCommit
+            // will be undefined).  Either way we clear the amending commits.
+            await this.clearAmendingCommits();
+
+            // There is a change to the last commit, but no transition hint so
+            // the view just updates without transition.
+            this.setState({ amendingCommits: [], lastCommit: nextCommit });
         } else {
             if (this.state.lastCommit && nextCommit) {
                 const direction: 'up' | 'down' = this.transitionHint === 'amend' ? 'up' : 'down';
@@ -244,7 +243,7 @@ export class ScmAmendComponent extends React.Component<ScmAmendComponentProps, S
         this.props.setCommitMessage(message);
     }
 
-    render() {
+    render(): JSX.Element {
         const neverShrink = this.state.amendingCommits.length <= 3;
 
         const style: React.CSSProperties = neverShrink
@@ -385,7 +384,7 @@ export class ScmAmendComponent extends React.Component<ScmAmendComponentProps, S
      *
      * @param callback
      */
-    protected onNextFrame(callback: FrameRequestCallback) {
+    protected onNextFrame(callback: FrameRequestCallback): void {
         setTimeout(
             () => window.requestAnimationFrame(callback),
             0);
@@ -410,7 +409,7 @@ export class ScmAmendComponent extends React.Component<ScmAmendComponentProps, S
         </div>;
     }
 
-    protected renderCommitBeingAmended(commitData: { commit: ScmCommit, avatar: string }, isOldestAmendCommit: boolean) {
+    protected renderCommitBeingAmended(commitData: { commit: ScmCommit, avatar: string }, isOldestAmendCommit: boolean): JSX.Element {
         if (isOldestAmendCommit && this.state.transition.state !== 'none' && this.state.transition.direction === 'up') {
             return <div className={ScmAmendComponent.Styles.COMMIT_AVATAR_AND_TEXT} style={{ flexGrow: 0, flexShrink: 0 }} key={commitData.commit.id}>
                 <div className='fixed-height-commit-container'>
@@ -542,7 +541,7 @@ export class ScmAmendComponent extends React.Component<ScmAmendComponentProps, S
     }
 
     readonly unamendAll = () => this.doUnamendAll();
-    protected async doUnamendAll() {
+    protected async doUnamendAll(): Promise<void> {
         while (this.state.amendingCommits.length > 0) {
             this.unamend();
             await new Promise(resolve => setTimeout(resolve, TRANSITION_TIME_MS));
@@ -550,7 +549,7 @@ export class ScmAmendComponent extends React.Component<ScmAmendComponentProps, S
     }
 
     readonly clearAmending = () => this.doClearAmending();
-    protected async doClearAmending() {
+    protected async doClearAmending(): Promise<void> {
         await this.clearAmendingCommits();
         this.setState({ amendingCommits: [] });
     }

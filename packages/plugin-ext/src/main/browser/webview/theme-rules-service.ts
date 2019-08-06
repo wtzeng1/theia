@@ -103,7 +103,7 @@ export class ThemeRulesService {
         return true;
     }
 
-    setIconPath(webviewId: string, iconPath: IconPath | string | undefined) {
+    setIconPath(webviewId: string, iconPath: IconPath | string | undefined): void {
         if (!iconPath) {
             this.icons.delete(webviewId);
         } else {
@@ -116,19 +116,11 @@ export class ThemeRulesService {
         this.updateIconStyleElement();
     }
 
-    private updateIconStyleElement() {
+    private updateIconStyleElement(): void {
         if (!this.styleElement) {
             return;
         }
-        const cssRules: string[] = [`.webview-icon::before {
-            background-repeat: no-repeat;
-            vertical-align: middle;
-            display: inline-block;
-            text-align: center;
-            height: 11px;
-            width: 11px;
-            content: "";
-        }`];
+        const cssRules: string[] = [];
         this.icons.forEach((value, key) => {
             let path: string;
             if (typeof value === 'string') {
@@ -137,7 +129,7 @@ export class ThemeRulesService {
                 path = this.isDark() ? value.dark : value.light;
             }
             if (path.startsWith('/')) {
-                path = `/webview${path}`;
+                path = `webview${path}`;
             }
             cssRules.push(`.webview-icon.${key}-file-icon::before { background-image: url(${path}); }`);
         });

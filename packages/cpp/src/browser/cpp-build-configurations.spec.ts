@@ -14,6 +14,9 @@
  * SPDX-License-Identifier: EPL-2.0 OR GPL-2.0 WITH Classpath-exception-2.0
  ********************************************************************************/
 
+import { enableJSDOM } from '@theia/core/lib/browser/test/jsdom';
+let disableJSDOM = enableJSDOM();
+
 import { ContainerModule, Container } from 'inversify';
 import { expect } from 'chai';
 import { FileSystem } from '@theia/filesystem/lib/common';
@@ -25,14 +28,18 @@ import { FileSystemNode } from '@theia/filesystem/lib/node/node-filesystem';
 import { bindCppPreferences } from './cpp-preferences';
 import { PreferenceService } from '@theia/core/lib/browser/preferences/preference-service';
 import { MockPreferenceService } from '@theia/core/lib/browser/preferences/test/mock-preference-service';
+import { TaskDefinitionRegistry } from '@theia/task/lib/browser';
+
+disableJSDOM();
 
 let container: Container;
 
-beforeEach(function () {
+beforeEach(function (): void {
     const m = new ContainerModule(bind => {
         bind(CppBuildConfigurationManager).to(CppBuildConfigurationManagerImpl).inSingletonScope();
         bind(StorageService).to(MockStorageService).inSingletonScope();
         bind(FileSystem).to(FileSystemNode).inSingletonScope();
+        bind(TaskDefinitionRegistry).toSelf().inSingletonScope();
         bindCppPreferences(bind);
         bind(PreferenceService).to(MockPreferenceService).inSingletonScope();
     });
@@ -76,8 +83,16 @@ async function initializeTest(buildConfigurations: CppBuildConfiguration[] | und
     return configs;
 }
 
-describe('build-configurations', function () {
-    it('should work with no preferences', async function () {
+describe('build-configurations', function (): void {
+    before(() => {
+        disableJSDOM = enableJSDOM();
+    });
+
+    after(() => {
+        disableJSDOM();
+    });
+
+    it('should work with no preferences', async function (): Promise<void> {
         const cppBuildConfigurations = await initializeTest(undefined, undefined);
 
         const configs = cppBuildConfigurations.getConfigs();
@@ -87,7 +102,7 @@ describe('build-configurations', function () {
         expect(configs).lengthOf(0);
     });
 
-    it('should work with an empty list of builds', async function () {
+    it('should work with an empty list of builds', async function (): Promise<void> {
         const cppBuildConfigurations = await initializeTest([], undefined);
 
         const configs = cppBuildConfigurations.getConfigs();
@@ -97,7 +112,7 @@ describe('build-configurations', function () {
         expect(configs).lengthOf(0);
     });
 
-    it('should work with a simple list of builds', async function () {
+    it('should work with a simple list of builds', async function (): Promise<void> {
         const builds = [{
             name: 'Release',
             directory: '/tmp/builds/release',
@@ -115,7 +130,7 @@ describe('build-configurations', function () {
         expect(configs).to.have.deep.members(builds);
     });
 
-    it('should work with a simple list of builds and an active config', async function () {
+    it('should work with a simple list of builds and an active config', async function (): Promise<void> {
         const builds = [{
             name: 'Release',
             directory: '/tmp/builds/release',
@@ -133,7 +148,7 @@ describe('build-configurations', function () {
         expect(configs).to.have.deep.members(builds);
     });
 
-    it("should ignore an active config that doesn't exist", async function () {
+    it("should ignore an active config that doesn't exist", async function (): Promise<void> {
         const builds = [{
             name: 'Release',
             directory: '/tmp/builds/release',

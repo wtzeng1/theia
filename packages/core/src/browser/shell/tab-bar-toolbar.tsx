@@ -21,7 +21,7 @@ import { Widget, ReactWidget } from '../widgets';
 import { LabelParser, LabelIcon } from '../label-parser';
 import { ContributionProvider } from '../../common/contribution-provider';
 import { FrontendApplicationContribution } from '../frontend-application';
-import { CommandRegistry, CommandService } from '../../common/command';
+import { CommandRegistry } from '../../common/command';
 import { Disposable, DisposableCollection } from '../../common/disposable';
 import { ContextKeyService } from '../context-key-service';
 import { Event, Emitter } from '../../common/event';
@@ -33,7 +33,7 @@ import { MenuModelRegistry } from '../../common/menu';
  */
 export const TabBarToolbarFactory = Symbol('TabBarToolbarFactory');
 export interface TabBarToolbarFactory {
-    (commandService: CommandService, labelParser: LabelParser): TabBarToolbar;
+    (): TabBarToolbar;
 }
 
 /**
@@ -124,11 +124,9 @@ export class TabBarToolbar extends ReactWidget {
             }
         }
         const command = this.commands.getCommand(item.command);
-        if (command) {
-            const iconClass = command.iconClass;
-            if (iconClass) {
-                classNames.push(iconClass);
-            }
+        const iconClass = item.icon || (command && command.iconClass);
+        if (iconClass) {
+            classNames.push(iconClass);
         }
         return <div key={item.id} className={`${TabBarToolbar.Styles.TAB_BAR_TOOLBAR_ITEM}${command && this.commandIsEnabled(command.id) ? ' enabled' : ''}`} >
             <div id={item.id} className={classNames.join(' ')} onClick={this.executeCommand} title={item.tooltip}>{innerText}</div>
@@ -142,6 +140,9 @@ export class TabBarToolbar extends ReactWidget {
     }
 
     protected showMoreContextMenu = (event: React.MouseEvent) => {
+        event.stopPropagation();
+        event.preventDefault();
+
         const menuPath = ['TAB_BAR_TOOLBAR_CONTEXT_MENU'];
         const toDisposeOnHide = new DisposableCollection();
         for (const [, item] of this.more) {
@@ -168,6 +169,9 @@ export class TabBarToolbar extends ReactWidget {
     }
 
     protected executeCommand = (e: React.MouseEvent<HTMLElement>) => {
+        e.preventDefault();
+        e.stopPropagation();
+
         const item = this.inline.get(e.currentTarget.id);
         if (TabBarToolbarItem.is(item)) {
             this.commands.executeCommand(item.command, this.current);
@@ -247,6 +251,11 @@ export interface TabBarToolbarItem {
      * Optional tooltip for the item.
      */
     readonly tooltip?: string;
+
+    /**
+     * Optional icon for the item.
+     */
+    readonly icon?: string;
 
     /**
      * https://code.visualstudio.com/docs/getstarted/keybindings#_when-clause-contexts
@@ -350,16 +359,21 @@ export class TabBarToolbarRegistry implements FrontendApplicationContribution {
      *
      * @param item the item to register.
      */
-    registerItem(item: TabBarToolbarItem | ReactTabBarToolbarItem): void {
+    registerItem(item: TabBarToolbarItem | ReactTabBarToolbarItem): Disposable {
         const { id } = item;
         if (this.items.has(id)) {
             throw new Error(`A toolbar item is already registered with the '${id}' ID.`);
         }
         this.items.set(id, item);
         this.fireOnDidChange();
+        const toDispose = new DisposableCollection(
+            Disposable.create(() => this.fireOnDidChange()),
+            Disposable.create(() => this.items.delete(id))
+        );
         if (item.onDidChange) {
-            item.onDidChange(() => this.fireOnDidChange());
+            toDispose.push(item.onDidChange(() => this.fireOnDidChange()));
         }
+        return toDispose;
     }
 
     /**

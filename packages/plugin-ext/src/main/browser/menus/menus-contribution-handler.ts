@@ -23,7 +23,7 @@ import { MenuModelRegistry } from '@theia/core/lib/common';
 import { TabBarToolbarRegistry, TabBarToolbarItem } from '@theia/core/lib/browser/shell/tab-bar-toolbar';
 import { NAVIGATOR_CONTEXT_MENU } from '@theia/navigator/lib/browser/navigator-contribution';
 import { QuickCommandService } from '@theia/core/lib/browser/quick-open/quick-command-service';
-import { VIEW_ITEM_CONTEXT_MENU, TreeViewWidget, VIEW_ITEM_INLINE_MNUE } from '../view/tree-views-main';
+import { VIEW_ITEM_CONTEXT_MENU, TreeViewWidget, VIEW_ITEM_INLINE_MNUE } from '../view/tree-view-widget';
 import { PluginContribution, Menu, ScmCommandArg, TreeViewSelection } from '../../../common';
 import { DebugStackFramesWidget } from '@theia/debug/lib/browser/view/debug-stack-frames-widget';
 import { DebugThreadsWidget } from '@theia/debug/lib/browser/view/debug-threads-widget';
@@ -33,6 +33,8 @@ import { ScmService } from '@theia/scm/lib/browser/scm-service';
 import { ScmRepository } from '@theia/scm/lib/browser/scm-repository';
 import { PluginScmProvider, PluginScmResourceGroup, PluginScmResource } from '../scm-main';
 import { ResourceContextKey } from '@theia/core/lib/browser/resource-context-key';
+import { PluginViewWidget } from '../view/plugin-view-widget';
+import { ViewContextKeyService } from '../view/view-context-key-service';
 
 @injectable()
 export class MenusContributionPointHandler {
@@ -61,6 +63,9 @@ export class MenusContributionPointHandler {
     @inject(ResourceContextKey)
     protected readonly resourceContextKey: ResourceContextKey;
 
+    @inject(ViewContextKeyService)
+    protected readonly viewContextKeys: ViewContextKeyService;
+
     handle(contributions: PluginContribution): void {
         const allMenus = contributions.menus;
         if (!allMenus) {
@@ -83,6 +88,18 @@ export class MenusContributionPointHandler {
                         execute: widget => widget instanceof EditorWidget && this.commands.executeCommand(action.command, selectedResource(widget)),
                         isEnabled: widget => widget instanceof EditorWidget && this.commands.isEnabled(action.command, selectedResource(widget)),
                         isVisible: widget => widget instanceof EditorWidget && this.commands.isVisible(action.command, selectedResource(widget))
+                    });
+                }
+            } else if (location === 'view/title') {
+                for (const action of allMenus[location]) {
+                    this.registerTitleAction(location, { ...action, when: undefined }, {
+                        execute: widget => widget instanceof PluginViewWidget && this.commands.executeCommand(action.command),
+                        isEnabled: widget => widget instanceof PluginViewWidget &&
+                            this.viewContextKeys.with({ view: widget.options.viewId }, () =>
+                                this.commands.isEnabled(action.command) && this.viewContextKeys.match(action.when)),
+                        isVisible: widget => widget instanceof PluginViewWidget &&
+                            this.viewContextKeys.with({ view: widget.options.viewId }, () =>
+                                this.commands.isVisible(action.command) && this.viewContextKeys.match(action.when))
                     });
                 }
             } else if (location === 'view/item/context') {
@@ -164,13 +181,13 @@ export class MenusContributionPointHandler {
         this.commands.registerCommand(command, handler);
 
         const { group, when } = action;
-        const item: Mutable<TabBarToolbarItem> = { id, command: id, group, when };
+        const item: Mutable<TabBarToolbarItem> = { id, command: id, group: group || '', when };
         this.tabBarToolbar.registerItem(item);
 
         this.onDidRegisterCommand(action.command, pluginCommand => {
             command.category = pluginCommand.category;
             item.tooltip = pluginCommand.label;
-            if (group === undefined || group === 'navigation') {
+            if (group === 'navigation') {
                 command.iconClass = pluginCommand.iconClass;
             }
         });

@@ -20,11 +20,11 @@ import {
     TasksMain,
     TaskDto,
     TaskExecutionDto
-} from '../../api/plugin-api';
+} from '../../common/plugin-api-rpc';
 import * as theia from '@theia/plugin';
 import * as converter from '../type-converters';
 import { Disposable } from '../types-impl';
-import { RPCProtocol } from '../../api/rpc-protocol';
+import { RPCProtocol } from '../../common/rpc-protocol';
 import { TaskProviderAdapter } from './task-provider';
 import { Emitter, Event } from '@theia/core/lib/common/event';
 
@@ -144,7 +144,7 @@ export class TasksExtImpl implements TasksExt {
         });
     }
 
-    private async fetchTaskExecutions() {
+    private async fetchTaskExecutions(): Promise<void> {
         try {
             const taskExecutions = await this.proxy.$taskExecutions();
             taskExecutions.forEach(execution => this.getTaskExecution(execution));

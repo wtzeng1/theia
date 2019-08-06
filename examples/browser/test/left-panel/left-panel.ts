@@ -21,23 +21,23 @@ export class LeftPanel {
     constructor(protected readonly driver: WebdriverIO.Client<void>) { }
 
     doesTabExist(tabName: string): boolean {
-        return this.driver.element('.p-TabBar.theia-app-left .p-TabBar-content').isExisting(`div=${tabName}`);
+        return this.driver.element('.p-TabBar.theia-app-left .p-TabBar-content').isExisting(`div*=${tabName}`);
     }
 
     isTabActive(tabName: string): boolean {
-        const tab = this.driver.element('.p-TabBar.theia-app-left .p-TabBar-content').element(`div=${tabName}`);
+        const tab = this.driver.element('.p-TabBar.theia-app-left .p-TabBar-content').element(`div*=${tabName}`);
         /* Check if the parent li container has the p-mod-current class which makes it active */
         return (tab.$('..').getAttribute('class').split(' ').indexOf('p-mod-current') !== -1);
     }
 
-    openCloseTab(tabName: string) {
-        this.driver.element('.p-TabBar.theia-app-left .p-TabBar-content').element(`div=${tabName}`).click('..');
+    openCloseTab(tabName: string): void {
+        this.driver.element('.p-TabBar.theia-app-left .p-TabBar-content').element(`div*=${tabName}`).click('..');
         // Wait for animations to finish
         this.driver.pause(300);
     }
 
-    collapseTab(tabName: string) {
-        this.driver.element('.p-TabBar.theia-app-left .p-TabBar-content').rightClick(`div=${tabName}`);
+    collapseTab(tabName: string): void {
+        this.driver.element('.p-TabBar.theia-app-left .p-TabBar-content').rightClick(`div*=${tabName}`);
         this.driver.element('.p-Widget.p-Menu .p-Menu-content').click('div=Collapse');
     }
 
@@ -57,7 +57,7 @@ export class LeftPanel {
      * collapse it.  No check is done to make sure this node actually exists or
      * represents a directory.
      */
-    toggleDirectoryInFilesView(name: string) {
+    toggleDirectoryInFilesView(name: string): void {
         this.waitForFilesViewVisible();
         const files = this.driver.element('#files');
         const element = files.element('div=' + name);
@@ -70,7 +70,7 @@ export class LeftPanel {
      * it.  Not check is done to make sure this node actually exists or
      * represents a file.
      */
-    openFileInFilesView(name: string) {
+    openFileInFilesView(name: string): void {
         this.waitForFilesViewVisible();
         const files = this.driver.element('#files');
         const element = files.element('div=' + name);
@@ -79,12 +79,12 @@ export class LeftPanel {
     }
 
     isScmContainerVisible(): boolean {
-        return (this.driver.isExisting('#theia-scmContainer') && this.driver.element('#theia-scmContainer').getAttribute('class').split(' ').indexOf('p-mod-hidden') === -1
+        return (this.driver.isExisting('#scm-view-container') && this.driver.element('#scm-view-container').getAttribute('class').split(' ').indexOf('p-mod-hidden') === -1
             && this.isPanelVisible());
     }
 
     waitForScmViewVisible(): void {
-        this.driver.waitForVisible('#theia-scmContainer');
+        this.driver.waitForVisible('#scm-view-container');
         // Wait for animations to finish
         this.driver.pause(300);
     }

@@ -16,8 +16,8 @@
 
 import * as theia from '@theia/plugin';
 import { interfaces, injectable } from 'inversify';
-import { WorkspaceExt, StorageExt, MAIN_RPC_CONTEXT, WorkspaceMain, WorkspaceFolderPickOptionsMain } from '../../api/plugin-api';
-import { RPCProtocol } from '../../api/rpc-protocol';
+import { WorkspaceExt, StorageExt, MAIN_RPC_CONTEXT, WorkspaceMain, WorkspaceFolderPickOptionsMain } from '../../common/plugin-api-rpc';
+import { RPCProtocol } from '../../common/rpc-protocol';
 import Uri from 'vscode-uri';
 import { UriComponents } from '../../common/uri-components';
 import { QuickOpenModel, QuickOpenItem, QuickOpenMode } from '@theia/core/lib/browser/quick-open/quick-open-model';
@@ -28,7 +28,7 @@ import URI from '@theia/core/lib/common/uri';
 import { WorkspaceService } from '@theia/workspace/lib/browser';
 import { Resource } from '@theia/core/lib/common/resource';
 import { Emitter, Event, Disposable, ResourceResolver } from '@theia/core';
-import { FileWatcherSubscriberOptions } from '../../api/model';
+import { FileWatcherSubscriberOptions } from '../../common/plugin-api-rpc-model';
 import { InPluginFileSystemWatcherManager } from './in-plugin-filesystem-watcher-manager';
 import { StoragePathService } from './storage-path-service';
 import { PluginServer } from '../../common/plugin-protocol';
@@ -263,7 +263,7 @@ export class TextContentResourceResolver implements ResourceResolver {
                 }
 
                 resource = new TextContentResource(uri, proxy, {
-                    dispose() {
+                    dispose(): void {
                         instance.resources.delete(uri.toString());
                     }
                 });
@@ -315,11 +315,11 @@ export class TextContentResource implements Resource {
         return Promise.reject(new Error(`Unable to get content for '${this.uri.toString()}'`));
     }
 
-    dispose() {
+    dispose(): void {
         this.disposable.dispose();
     }
 
-    setContent(content: string) {
+    setContent(content: string): void {
         this.cache = content;
         this.onDidChangeContentsEmitter.fire(undefined);
     }

@@ -52,14 +52,21 @@ export type GitHistoryListNode = (GitCommitNode | GitFileChangeNode);
 @injectable()
 export class GitHistoryWidget extends GitNavigableListWidget<GitHistoryListNode> implements StatefulWidget {
     protected options: Git.Options.Log;
-    protected commits: GitCommitNode[];
-    protected ready: boolean;
     protected singleFileMode: boolean;
     private cancelIndicator: CancellationTokenSource;
     protected listView: GitHistoryList | undefined;
     protected hasMoreCommits: boolean;
     protected allowScrollToSelected: boolean;
-    protected errorMessage: React.ReactNode;
+
+    protected status: {
+        state: 'loading',
+    } | {
+        state: 'ready',
+        commits: GitCommitNode[];
+    } | {
+        state: 'error',
+        errorMessage: React.ReactNode
+    };
 
     constructor(
         @inject(OpenerService) protected readonly openerService: OpenerService,
@@ -101,9 +108,8 @@ export class GitHistoryWidget extends GitNavigableListWidget<GitHistoryListNode>
         super.update();
     }
 
-    async setContent(options?: Git.Options.Log) {
+    async setContent(options?: Git.Options.Log): Promise<void> {
         this.resetState(options);
-        this.ready = false;
         if (options && options.uri) {
             const fileStat = await this.fileSystem.getFileStat(options.uri);
             this.singleFileMode = !!fileStat && !fileStat.isDirectory;
@@ -115,9 +121,9 @@ export class GitHistoryWidget extends GitNavigableListWidget<GitHistoryListNode>
         }
     }
 
-    protected resetState(options?: Git.Options.Log) {
+    protected resetState(options?: Git.Options.Log): void {
         this.options = options || {};
-        this.commits = [];
+        this.status = { state: 'loading' };
         this.gitNodes = [];
         this.hasMoreCommits = true;
         this.allowScrollToSelected = true;
@@ -127,21 +133,22 @@ export class GitHistoryWidget extends GitNavigableListWidget<GitHistoryListNode>
         let repository: Repository | undefined;
         repository = this.repositoryProvider.findRepositoryOrSelected(options);
 
-        this.errorMessage = undefined;
         this.cancelIndicator.cancel();
         this.cancelIndicator = new CancellationTokenSource();
         const token = this.cancelIndicator.token;
 
         if (repository) {
             try {
+                const currentCommits = this.status.state === 'ready' ? this.status.commits : [];
+
                 let changes = await this.git.log(repository, options);
                 if (token.isCancellationRequested || !this.hasMoreCommits) {
                     return;
                 }
-                if (options && ((options.maxCount && changes.length < options.maxCount) || (!options.maxCount && this.commits))) {
+                if (options && ((options.maxCount && changes.length < options.maxCount) || (!options.maxCount && currentCommits))) {
                     this.hasMoreCommits = false;
                 }
-                if (this.commits.length > 0) {
+                if (currentCommits.length > 0) {
                     changes = changes.slice(1);
                 }
                 if (changes.length > 0) {
@@ -164,25 +171,27 @@ export class GitHistoryWidget extends GitNavigableListWidget<GitHistoryListNode>
                             selected: false
                         });
                     }
-                    this.commits.push(...commits);
+                    currentCommits.push(...commits);
+                    this.status = { state: 'ready', commits: currentCommits };
                 } else if (options && options.uri && repository) {
                     const pathIsUnderVersionControl = await this.git.lsFiles(repository, options.uri, { errorUnmatch: true });
                     if (!pathIsUnderVersionControl) {
-                        this.errorMessage = <React.Fragment>It is not under version control.</React.Fragment>;
+                        this.status = { state: 'error', errorMessage: <React.Fragment> It is not under version control.</React.Fragment> };
+                    } else {
+                        this.status = { state: 'error', errorMessage: <React.Fragment> No commits have been committed.</React.Fragment> };
                     }
                 }
 
             } catch (error) {
-                this.errorMessage = error.message;
+                this.status = { state: 'error', errorMessage: error.message };
             }
 
         } else {
-            this.commits = [];
-            this.errorMessage = <React.Fragment>There is no repository selected in this workspace.</React.Fragment>;
+            this.status = { state: 'error', errorMessage: <React.Fragment>There is no repository selected in this workspace.</React.Fragment> };
         }
     }
 
-    protected async addOrRemoveFileChangeNodes(commit: GitCommitNode) {
+    protected async addOrRemoveFileChangeNodes(commit: GitCommitNode): Promise<void> {
         const id = this.gitNodes.findIndex(node => node === commit);
         if (commit.expanded) {
             this.removeFileChangeNodes(commit, id);
@@ -193,7 +202,7 @@ export class GitHistoryWidget extends GitNavigableListWidget<GitHistoryListNode>
         this.update();
     }
 
-    protected async addFileChangeNodes(commit: GitCommitNode, gitNodesArrayIndex: number) {
+    protected async addFileChangeNodes(commit: GitCommitNode, gitNodesArrayIndex: number): Promise<void> {
         if (commit.fileChanges) {
             const fileChangeNodes: GitFileChangeNode[] = [];
             await Promise.all(commit.fileChanges.map(async fileChange => {
@@ -210,7 +219,7 @@ export class GitHistoryWidget extends GitNavigableListWidget<GitHistoryListNode>
         }
     }
 
-    protected removeFileChangeNodes(commit: GitCommitNode, gitNodesArrayIndex: number) {
+    protected removeFileChangeNodes(commit: GitCommitNode, gitNodesArrayIndex: number): void {
         if (commit.fileChanges) {
             this.gitNodes.splice(gitNodesArrayIndex + 1, commit.fileChanges.length);
         }
@@ -232,37 +241,48 @@ export class GitHistoryWidget extends GitNavigableListWidget<GitHistoryListNode>
     }
 
     protected onDataReady(): void {
-        this.ready = true;
-        this.gitNodes = this.commits;
+        if (this.status.state === 'ready') {
+            this.gitNodes = this.status.commits;
+        }
         this.update();
     }
 
     protected render(): React.ReactNode {
         let content: React.ReactNode;
-        if (this.ready && this.gitNodes.length > 0) {
-            content = < React.Fragment >
-                {this.renderHistoryHeader()}
-                {this.renderCommitList()}
-            </React.Fragment>;
-        } else if (this.errorMessage) {
-            let path: React.ReactNode = '';
-            let reason: React.ReactNode;
-            reason = this.errorMessage;
-            if (this.options.uri) {
-                const relPath = this.relativePath(this.options.uri);
-                const repo = this.repositoryProvider.findRepository(new URI(this.options.uri));
-                const repoName = repo ? ` in ${new URI(repo.localUri).displayName}` : '';
-                path = ` for ${decodeURIComponent(relPath)}${repoName}`;
-            }
-            content = <AlertMessage
-                type='WARNING'
-                header={`There is no Git history available${path}`}>
-                {reason}
-            </AlertMessage>;
-        } else {
-            content = <div className='spinnerContainer'>
-                <span className='fa fa-spinner fa-pulse fa-3x fa-fw'></span>
-            </div>;
+        switch (this.status.state) {
+            case 'ready':
+                content = < React.Fragment >
+                    {this.renderHistoryHeader()}
+                    {this.renderCommitList()}
+                </React.Fragment>;
+                break;
+
+            case 'error':
+                let path: React.ReactNode = '';
+                let reason: React.ReactNode;
+                reason = this.status.errorMessage;
+                if (this.options.uri) {
+                    const relPathEncoded = this.relativePath(this.options.uri);
+                    const relPath = relPathEncoded ? `${decodeURIComponent(relPathEncoded)}` : '';
+
+                    const repo = this.repositoryProvider.findRepository(new URI(this.options.uri));
+                    const repoName = repo ? `${new URI(repo.localUri).displayName}` : '';
+
+                    const relPathAndRepo = [relPath, repoName].filter(Boolean).join(' in ');
+                    path = ` for ${relPathAndRepo}`;
+                }
+                content = <AlertMessage
+                    type='WARNING'
+                    header={`There is no Git history available${path}.`}>
+                    {reason}
+                </AlertMessage>;
+                break;
+
+            case 'loading':
+                content = <div className='spinnerContainer'>
+                    <span className='fa fa-spinner fa-pulse fa-3x fa-fw'></span>
+                </div>;
+                break;
         }
         return <div className='git-diff-container'>
             {content}
@@ -305,7 +325,7 @@ export class GitHistoryWidget extends GitNavigableListWidget<GitHistoryListNode>
     }
 
     protected readonly handleScroll = (info: ScrollParams) => this.doHandleScroll(info);
-    protected doHandleScroll(info: ScrollParams) {
+    protected doHandleScroll(info: ScrollParams): void {
         this.node.scrollTop = info.scrollTop;
     }
 
@@ -381,7 +401,7 @@ export class GitHistoryWidget extends GitNavigableListWidget<GitHistoryListNode>
         </div >;
     }
 
-    protected async openDetailWidget(commit: GitCommitNode) {
+    protected async openDetailWidget(commit: GitCommitNode): Promise<void> {
         const commitDetails = this.detailOpenHandler.getCommitDetailWidgetOptions(commit);
         this.detailOpenHandler.open(GitCommitDetailUri.toUri(commit.commitSha), {
             ...commitDetails
@@ -425,18 +445,18 @@ export class GitHistoryWidget extends GitNavigableListWidget<GitHistoryListNode>
 
     protected navigateLeft(): void {
         const selected = this.getSelected();
-        if (selected) {
-            const idx = this.commits.findIndex(c => c.commitSha === selected.commitSha);
+        if (selected && this.status.state === 'ready') {
+            const idx = this.status.commits.findIndex(c => c.commitSha === selected.commitSha);
             if (GitCommitNode.is(selected)) {
                 if (selected.expanded) {
                     this.addOrRemoveFileChangeNodes(selected);
                 } else {
                     if (idx > 0) {
-                        this.selectNode(this.commits[idx - 1]);
+                        this.selectNode(this.status.commits[idx - 1]);
                     }
                 }
             } else if (GitFileChangeNode.is(selected)) {
-                this.selectNode(this.commits[idx]);
+                this.selectNode(this.status.commits[idx]);
             }
         }
         this.update();
@@ -470,7 +490,7 @@ export class GitHistoryWidget extends GitNavigableListWidget<GitHistoryListNode>
         this.update();
     }
 
-    protected openFile(change: GitFileChange, commitSha: string) {
+    protected openFile(change: GitFileChange, commitSha: string): void {
         const uri: URI = new URI(change.uri);
         let fromURI = change.oldUri ? new URI(change.oldUri) : uri; // set oldUri on renamed and copied
         fromURI = fromURI.withScheme(GIT_RESOURCE_SCHEME).withQuery(commitSha + '~1');
@@ -503,7 +523,7 @@ export class GitHistoryList extends React.Component<GitHistoryList.Props> {
     list: List | undefined;
 
     protected readonly checkIfRowIsLoaded = (opts: { index: number }) => this.doCheckIfRowIsLoaded(opts);
-    protected doCheckIfRowIsLoaded(opts: { index: number }) {
+    protected doCheckIfRowIsLoaded(opts: { index: number }): boolean {
         const row = this.props.rows[opts.index];
         return !!row;
     }

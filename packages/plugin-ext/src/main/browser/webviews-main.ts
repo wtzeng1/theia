@@ -14,9 +14,9 @@
  * SPDX-License-Identifier: EPL-2.0 OR GPL-2.0 WITH Classpath-exception-2.0
  ********************************************************************************/
 
-import { WebviewsMain, MAIN_RPC_CONTEXT, WebviewsExt } from '../../api/plugin-api';
+import { WebviewsMain, MAIN_RPC_CONTEXT, WebviewsExt } from '../../common/plugin-api-rpc';
 import { interfaces } from 'inversify';
-import { RPCProtocol } from '../../api/rpc-protocol';
+import { RPCProtocol } from '../../common/rpc-protocol';
 import { UriComponents } from '../../common/uri-components';
 import { WebviewOptions, WebviewPanelOptions, WebviewPanelShowOptions } from '@theia/plugin';
 import { ApplicationShell } from '@theia/core/lib/browser/shell/application-shell';
@@ -116,7 +116,7 @@ export class WebviewsMainImpl implements WebviewsMain {
         this.viewsOptions.set(view.id, { panelOptions: showOptions, options: options, panelId, visible: false, active: false });
         this.addOrReattachWidget(panelId, showOptions);
     }
-    private addOrReattachWidget(handler: string, showOptions: WebviewPanelShowOptions) {
+    private addOrReattachWidget(handler: string, showOptions: WebviewPanelShowOptions): void {
         const view = this.views.get(handler);
         if (!view) {
             return;
@@ -237,7 +237,7 @@ export class WebviewsMainImpl implements WebviewsMain {
         this.revivers.delete(viewType);
     }
 
-    private async checkViewOptions(handler: string, viewColumn?: number | undefined) {
+    private async checkViewOptions(handler: string, viewColumn?: number | undefined): Promise<void> {
         const options = this.viewsOptions.get(handler);
         if (!options || !options.panelOptions) {
             return;
@@ -269,7 +269,7 @@ export class WebviewsMainImpl implements WebviewsMain {
         return webview;
     }
 
-    private onCloseView(viewId: string) {
+    private onCloseView(viewId: string): void {
         const view = this.views.get(viewId);
         if (view) {
             this.themeRulesService.setIconPath(view.id, undefined);

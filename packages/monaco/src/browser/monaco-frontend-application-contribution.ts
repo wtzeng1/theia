@@ -16,14 +16,10 @@
 
 import { injectable, inject } from 'inversify';
 import { FrontendApplicationContribution, PreferenceSchemaProvider } from '@theia/core/lib/browser';
-import { ThemeService } from '@theia/core/lib/browser/theming';
 import { MonacoSnippetSuggestProvider } from './monaco-snippet-suggest-provider';
 
 @injectable()
 export class MonacoFrontendApplicationContribution implements FrontendApplicationContribution {
-
-    @inject(ThemeService)
-    protected readonly themeService: ThemeService;
 
     @inject(MonacoSnippetSuggestProvider)
     protected readonly snippetSuggestProvider: MonacoSnippetSuggestProvider;
@@ -31,11 +27,7 @@ export class MonacoFrontendApplicationContribution implements FrontendApplicatio
     @inject(PreferenceSchemaProvider)
     protected readonly preferenceSchema: PreferenceSchemaProvider;
 
-    async initialize() {
-        const currentTheme = this.themeService.getCurrentTheme();
-        this.changeTheme(currentTheme.editorTheme);
-        this.themeService.onThemeChange(event => this.changeTheme(event.newTheme.editorTheme));
-
+    async initialize(): Promise<void> {
         monaco.suggest.setSnippetSuggestSupport(this.snippetSuggestProvider);
 
         for (const language of monaco.languages.getLanguages()) {
@@ -48,9 +40,4 @@ export class MonacoFrontendApplicationContribution implements FrontendApplicatio
         };
     }
 
-    protected changeTheme(editorTheme: string | undefined) {
-        const monacoTheme = editorTheme || this.themeService.defaultTheme.id;
-        monaco.editor.setTheme(monacoTheme);
-        document.body.classList.add(monacoTheme);
-    }
 }

@@ -188,24 +188,24 @@ export class TerminalWidgetImpl extends TerminalWidget implements StatefulWidget
         }
     }
 
-    showHoverMessage(x: number, y: number, message: string) {
+    showHoverMessage(x: number, y: number, message: string): void {
         this.hoverMessage.innerText = message;
         this.hoverMessage.style.display = 'inline';
         this.hoverMessage.style.top = `${y - 30}px`;
         this.hoverMessage.style.left = `${x - 60}px`;
     }
 
-    hideHover() {
+    hideHover(): void {
         this.hoverMessage.style.display = 'none';
     }
 
-    getTerminal() {
+    getTerminal(): Xterm.Terminal {
         return this.term;
     }
 
     get cwd(): Promise<URI> {
         if (!IBaseTerminalServer.validateId(this.terminalId)) {
-            throw new Error('terminal is not started');
+            return Promise.reject(new Error('terminal is not started'));
         }
         if (this.terminalService.getById(this.id)) {
             return this.shellTerminalServer.getCwdURI(this.terminalId)
@@ -216,12 +216,12 @@ export class TerminalWidgetImpl extends TerminalWidget implements StatefulWidget
 
     get processId(): Promise<number> {
         if (!IBaseTerminalServer.validateId(this.terminalId)) {
-            throw new Error('terminal is not started');
+            return Promise.reject(new Error('terminal is not started'));
         }
         return this.shellTerminalServer.getProcessId(this.terminalId);
     }
 
-    onDispose(onDispose: () => void) {
+    onDispose(onDispose: () => void): void {
         this.toDispose.push(Disposable.create(onDispose));
     }
 
@@ -234,7 +234,7 @@ export class TerminalWidgetImpl extends TerminalWidget implements StatefulWidget
         return { terminalId: this.terminalId, titleLabel: this.title.label };
     }
 
-    restoreState(oldState: object) {
+    restoreState(oldState: object): void {
         if (this.restored === false) {
             const state = oldState as { terminalId: number, titleLabel: string };
             /* This is a workaround to issue #879 */

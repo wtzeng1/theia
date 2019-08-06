@@ -24,6 +24,7 @@ import {
 import { KEY_CODE_MAP } from './monaco-keycode-map';
 import { ContextKey } from '@theia/core/lib/browser/context-key-service';
 import { MonacoContextKeyService } from './monaco-context-key-service';
+import { QuickOpenHideReason } from '@theia/core/lib/common/quick-open-service';
 
 export interface MonacoQuickOpenControllerOpts extends monaco.quickOpen.IQuickOpenControllerOpts {
     readonly prefix?: string;
@@ -69,6 +70,22 @@ export class MonacoQuickOpenService extends QuickOpenService {
 
     open(model: QuickOpenModel, options?: QuickOpenOptions): void {
         this.internalOpen(new MonacoQuickOpenControllerOptsImpl(model, this.keybindingRegistry, options));
+    }
+
+    hide(reason?: QuickOpenHideReason): void {
+        let hideReason: monaco.quickOpen.HideReason | undefined;
+        switch (reason) {
+            case QuickOpenHideReason.ELEMENT_SELECTED:
+                hideReason = monaco.quickOpen.HideReason.ELEMENT_SELECTED;
+                break;
+            case QuickOpenHideReason.FOCUS_LOST:
+                hideReason = monaco.quickOpen.HideReason.FOCUS_LOST;
+                break;
+            case QuickOpenHideReason.CANCELED:
+                hideReason = monaco.quickOpen.HideReason.CANCELED;
+                break;
+        }
+        this.widget.hide(hideReason);
     }
 
     showDecoration(type: MessageType): void {
@@ -445,7 +462,7 @@ export class MonacoQuickOpenActionProvider implements monaco.quickOpen.IActionPr
         return monaco.Promise.wrap([]);
     }
 
-    getActionItem() {
+    getActionItem(): undefined {
         return undefined;
     }
 }
@@ -475,7 +492,13 @@ class TheiaResolvedKeybinding extends monaco.keybindings.ResolvedKeybinding {
         }));
     }
 
-    private getKeyAndModifiers(index: number) {
+    private getKeyAndModifiers(index: number): {
+        key: string | null;
+        modifiers: monaco.keybindings.Modifiers;
+    } | {
+        key: null;
+        modifiers: null;
+    } {
         if (index >= this.parts.length) {
             // tslint:disable-next-line:no-null-keyword
             return { key: null, modifiers: null };

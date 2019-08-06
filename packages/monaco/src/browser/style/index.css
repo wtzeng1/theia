@@ -25,19 +25,19 @@
 }
 
 /*
- * we need to disable the background image when using font awesome icons
+ * we need to disable the background image when using font awesome icons and file-icons
  */
-.monaco-quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.fa {
+.monaco-quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.fa,
+.monaco-quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.file-icon {
+    display: flex;
+    justify-content: center;
+    align-items: center;
     background-image: none;
     margin-right: 0px;
 }
 
-/*
- * we need to disable the background image when using file-icons
- */
-.monaco-quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.file-icon {
-    background-image: none;
-    margin-right: 0px;
+.monaco-quick-open-widget {
+    background-color: var(--theia-layout-color1) !important;
 }
 
 .quick-open-entry .quick-open-row .monaco-icon-label .monaco-icon-label-description-container .monaco-highlighted-label .highlight {

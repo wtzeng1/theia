@@ -17,7 +17,10 @@
 import '../../../src/main/style/status-bar.css';
 
 import { ContainerModule } from 'inversify';
-import { FrontendApplicationContribution, FrontendApplication, WidgetFactory, bindViewContribution } from '@theia/core/lib/browser';
+import {
+    FrontendApplicationContribution, FrontendApplication, WidgetFactory, bindViewContribution,
+    ViewContainerIdentifier, ViewContainer, createTreeContainer, TreeImpl, TreeWidget, TreeModelImpl
+} from '@theia/core/lib/browser';
 import { MaybePromise, CommandContribution, ResourceResolver, bindContributionProvider } from '@theia/core/lib/common';
 import { WebSocketConnectionProvider } from '@theia/core/lib/browser/messaging';
 import { HostedPluginSupport } from '../../hosted/browser/hosted-plugin';
@@ -36,7 +39,7 @@ import { EditorModelService, EditorModelServiceImpl } from './text-editor-model-
 import { UntitledResourceResolver } from './editor/untitled-resource';
 import { MenusContributionPointHandler } from './menus/menus-contribution-handler';
 import { PluginContributionHandler } from './plugin-contribution-handler';
-import { ViewRegistry } from './view/view-registry';
+import { PluginViewRegistry, PLUGIN_VIEW_CONTAINER_FACTORY_ID, PLUGIN_VIEW_FACTORY_ID, PLUGIN_VIEW_DATA_FACTORY_ID } from './view/plugin-view-registry';
 import { TextContentResourceResolver } from './workspace-main';
 import { MainPluginApiProvider } from '../../common/plugin-ext-api-contribution';
 import { PluginPathsService, pluginPathsServicePath } from '../common/plugin-paths-protocol';
@@ -54,7 +57,9 @@ import { PluginSharedStyle } from './plugin-shared-style';
 import { FSResourceResolver } from './file-system-main';
 import { SelectionProviderCommandContribution } from './selection-provider-command';
 import { ViewColumnService } from './view-column-service';
-import { TreeViewContextKeyService } from './view/tree-view-context-key-service';
+import { ViewContextKeyService } from './view/view-context-key-service';
+import { PluginViewWidget, PluginViewWidgetIdentifier } from './view/plugin-view-widget';
+import { TreeViewWidgetIdentifier, VIEW_ITEM_CONTEXT_MENU, PluginTree, TreeViewWidget, PluginTreeModel } from './view/tree-view-widget';
 
 export default new ContainerModule((bind, unbind, isBound, rebind) => {
 
@@ -106,10 +111,44 @@ export default new ContainerModule((bind, unbind, isBound, rebind) => {
         return provider.createProxy<PluginServer>(pluginServerJsonRpcPath);
     }).inSingletonScope();
 
-    bind(TreeViewContextKeyService).toSelf().inSingletonScope();
+    bind(ViewContextKeyService).toSelf().inSingletonScope();
 
+    bind(WidgetFactory).toDynamicValue(({ container }) => ({
+        id: PLUGIN_VIEW_DATA_FACTORY_ID,
+        createWidget: (identifier: TreeViewWidgetIdentifier) => {
+            const child = createTreeContainer(container, {
+                contextMenuPath: VIEW_ITEM_CONTEXT_MENU,
+                globalSelection: true
+            });
+            child.bind(TreeViewWidgetIdentifier).toConstantValue(identifier);
+            child.bind(PluginTree).toSelf();
+            child.rebind(TreeImpl).toService(PluginTree);
+            child.bind(PluginTreeModel).toSelf();
+            child.rebind(TreeModelImpl).toService(PluginTreeModel);
+            child.bind(TreeViewWidget).toSelf();
+            child.rebind(TreeWidget).toService(TreeViewWidget);
+            return child.get(TreeWidget);
+        }
+    })).inSingletonScope();
+
+    bind(PluginViewWidget).toSelf();
+    bind(WidgetFactory).toDynamicValue(({ container }) => ({
+        id: PLUGIN_VIEW_FACTORY_ID,
+        createWidget: (identifier: PluginViewWidgetIdentifier) => {
+            const child = container.createChild();
+            child.bind(PluginViewWidgetIdentifier).toConstantValue(identifier);
+            return child.get(PluginViewWidget);
+        }
+    })).inSingletonScope();
+
+    bind(WidgetFactory).toDynamicValue(({ container }) => ({
+        id: PLUGIN_VIEW_CONTAINER_FACTORY_ID,
+        createWidget: (identifier: ViewContainerIdentifier) =>
+            container.get<ViewContainer.Factory>(ViewContainer.Factory)(identifier)
+    })).inSingletonScope();
     bind(PluginSharedStyle).toSelf().inSingletonScope();
-    bind(ViewRegistry).toSelf().inSingletonScope();
+    bind(PluginViewRegistry).toSelf().inSingletonScope();
+    bind(FrontendApplicationContribution).toService(PluginViewRegistry);
     bind(MenusContributionPointHandler).toSelf().inSingletonScope();
 
     bind(KeybindingsContributionPointHandler).toSelf().inSingletonScope();
