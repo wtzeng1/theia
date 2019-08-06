@@ -47,7 +47,7 @@ export class TerminalSearchWidget extends ReactWidget {
     protected element: Element;
 
     @postConstruct()
-    protected init() {
+    protected init(): void {
         this.hide();
         this.element.appendChild(this.node);
         ReactDOM.render(<React.Fragment>{this.render()}</React.Fragment>, this.node);
@@ -90,13 +90,13 @@ export class TerminalSearchWidget extends ReactWidget {
        </div>;
     }
 
-    onSearchInputFocus() {
+    onSearchInputFocus(): void {
         if (this.searchBox) {
             this.searchBox.classList.add('option-enabled');
         }
     }
 
-    onSearchInputBlur() {
+    onSearchInputBlur(): void {
         if (this.searchBox) {
             this.searchBox.classList.remove('option-enabled');
         }
@@ -106,7 +106,7 @@ export class TerminalSearchWidget extends ReactWidget {
         return <div title={title} tabIndex={0} className={style} onClick={event => this.onOptionClicked(event, optionName)}></div>;
     }
 
-    private onOptionClicked(event: React.MouseEvent<HTMLSpanElement>, optionName: string) {
+    private onOptionClicked(event: React.MouseEvent<HTMLSpanElement>, optionName: string): void {
         let enabled: boolean;
         switch (optionName) {
             case TerminalSearchOption.CaseSensitiv: {
@@ -133,7 +133,7 @@ export class TerminalSearchWidget extends ReactWidget {
         this.search();
     }
 
-    search(event?: React.KeyboardEvent) {
+    search(event?: React.KeyboardEvent): void {
         if (event && event.shiftKey && event.keyCode === Key.ENTER.keyCode) {
             this.findPrevious();
             return;
