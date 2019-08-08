@@ -18,20 +18,15 @@ import { injectable, inject, postConstruct } from 'inversify';
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget';
 import * as React from 'react';
 import '../../../src/browser/style/terminal-search.css';
+import { TerminalSearchBox } from '../base/terminal-search-box';
 import { Terminal } from 'xterm';
 import { findNext, findPrevious } from 'xterm/lib/addons/search/search';
 import { ISearchOptions } from 'xterm/lib/addons/search/Interfaces';
 import { Key } from '@theia/core/lib/browser';
-import { TerminalSearchBox } from '../base/terminal-search-box';
 
+export const TERMINAL_SEARCH_WIDGET_FACTORY_ID = 'terminal-search';
 export const TerminalSearchWidgetFactory = Symbol('TerminalSearchWidgetFactory');
 export type TerminalSearchWidgetFactory = (terminal: Terminal, node: Element, terminalWdgId: string) => TerminalSearchWidget;
-
-export enum TerminalSearchOption {
-    CaseSensitiv = 'caseSensitive',
-    WholeWord = 'wholeWord',
-    RegExp = 'regex'
-}
 
 @injectable()
 export class TerminalSearchWidget extends ReactWidget implements TerminalSearchBox {
@@ -51,11 +46,13 @@ export class TerminalSearchWidget extends ReactWidget implements TerminalSearchB
 
         this.node.classList.add('theia-search-terminal-widget-parent');
 
-        this.search = this.search.bind(this);
+        this.onInputChanged = this.onInputChanged.bind(this);
         this.onSearchInputFocus = this.onSearchInputFocus.bind(this);
         this.onSearchInputBlur = this.onSearchInputBlur.bind(this);
-        this.findPrevious = this.findPrevious.bind(this);
-        this.findNext = this.findNext.bind(this);
+
+        this.onNextButtonClicked = this.onNextButtonClicked.bind(this);
+        this.onPreviousButtonClicked = this.onPreviousButtonClicked.bind(this);
+
         this.hide = this.hide.bind(this);
         this.onCaseSensitiveOptionClicked = this.onCaseSensitiveOptionClicked.bind(this);
         this.onWroleWordOptionClicked = this.onWroleWordOptionClicked.bind(this);
@@ -81,7 +78,7 @@ export class TerminalSearchWidget extends ReactWidget implements TerminalSearchB
                     type='text'
                     placeholder='Find'
                     ref={ip => this.searchInput = ip}
-                    onKeyUp={this.search}
+                    onKeyUp={this.onInputChanged}
                     onFocus={this.onSearchInputFocus}
                     onBlur={this.onSearchInputBlur}
                 />
@@ -89,8 +86,8 @@ export class TerminalSearchWidget extends ReactWidget implements TerminalSearchB
                 <div title='Match whole word' tabIndex={0} className='search-elem whole-word' onClick={this.onWroleWordOptionClicked}></div>
                 <div title='Use regular expression' tabIndex={0} className='search-elem use-regexp' onClick={this.onRegexOptionClicked}></div>
             </div>
-            <button title='Previous match' className='search-elem' onClick={this.findPrevious}>&#171;</button>
-            <button title='Next match' className='search-elem' onClick={this.findNext}>&#187;</button>
+            <button title='Previous match' className='search-elem' onClick={this.onPreviousButtonClicked}>&#171;</button>
+            <button title='Next match' className='search-elem' onClick={this.onNextButtonClicked}>&#187;</button>
             <button title='Close' className='search-elem close' onClick={this.hide}></button>
        </div>;
     }
@@ -109,56 +106,67 @@ export class TerminalSearchWidget extends ReactWidget implements TerminalSearchB
 
     private onCaseSensitiveOptionClicked(event: React.MouseEvent<HTMLSpanElement>): void {
         this.searchOptions.caseSensitive = !this.searchOptions.caseSensitive;
-        this.updateSearchOption(this.searchOptions.caseSensitive, event.currentTarget);
+        this.updateSearchInputBox(this.searchOptions.caseSensitive, event.currentTarget);
     }
 
     private onWroleWordOptionClicked(event: React.MouseEvent<HTMLSpanElement>): void {
         this.searchOptions.wholeWord = !this.searchOptions.wholeWord;
-        this.updateSearchOption(this.searchOptions.wholeWord, event.currentTarget);
+        this.updateSearchInputBox(this.searchOptions.wholeWord, event.currentTarget);
     }
 
     private onRegexOptionClicked(event: React.MouseEvent<HTMLSpanElement>): void {
-        this.searchOptions.regex = !this.searchOptions.regex;
-        this.updateSearchOption(this.searchOptions.regex, event.currentTarget);
+        this.searchOptions.regex= !this.searchOptions.regex;
+        this.updateSearchInputBox(this.searchOptions.regex, event.currentTarget);
     }
 
-    private updateSearchOption(enable: boolean, optionElement: HTMLSpanElement): void {
+    private updateSearchInputBox(enable: boolean, optionElement: HTMLSpanElement): void {
         if (enable) {
             optionElement.classList.add('option-enabled');
         } else {
             optionElement.classList.remove('option-enabled');
         }
         this.searchInput!.focus();
-        this.search();
     }
 
-    search(event?: React.KeyboardEvent): void {
+    private onInputChanged(event: React.KeyboardEvent): void {
+        // move to previous search result on `Shift + Enter`
         if (event && event.shiftKey && event.keyCode === Key.ENTER.keyCode) {
-            this.findPrevious();
+            this.search(false, 'previous');
             return;
         }
+        // move to next search result on `Enter`
         if (event && event.keyCode === Key.ENTER.keyCode) {
-            this.findNext();
+            this.search(false, 'next');
             return;
         }
-        this.findNext(undefined, true);
+
+        this.search(true, 'next');
     }
 
-    protected findNext(event?: React.MouseEvent, incremental?: boolean): void {
+    search(incremental: boolean, searchDirection: 'next' | 'previous'): void {
         if (this.searchInput) {
-            const text = this.searchInput.value;
-            findNext(this.terminal, text, { ...this.searchOptions, incremental });
+            this.searchOptions.incremental = incremental;
+            const searchText = this.searchInput.value;
+
+            if (searchDirection === 'next') {
+                findNext(this.terminal, searchText, this.searchOptions);
+            }
+
+            if (searchDirection === 'previous') {
+                findPrevious(this.terminal, searchText, this.searchOptions);
+            }
         }
     }
 
-    protected findPrevious(): void {
-        if (this.searchInput) {
-            const text = this.searchInput.value;
-            findPrevious(this.terminal, text, { ...this.searchOptions, incremental: false });
-        }
+    private onNextButtonClicked(): void {
+        this.search(false, 'next');
     }
 
-    hide(): void { // use dispose instead of hide
+    private onPreviousButtonClicked(): void {
+        this.search(false, 'previous');
+    }
+
+    hide(): void {
         super.hide();
         this.terminal.focus();
     }

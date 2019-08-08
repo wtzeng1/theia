@@ -61,7 +61,7 @@ export class TerminalWidgetImpl extends TerminalWidget implements StatefulWidget
     protected readonly onTermDidClose = new Emitter<TerminalWidget>();
     protected terminalId = -1;
     protected term: Xterm.Terminal;
-    protected terminalSeachBox: TerminalSearchBox;
+    protected searchBox: TerminalSearchBox;
     protected restored = false;
     protected closeOnDispose = true;
     protected waitForConnection: Deferred<MessageConnection> | undefined;
@@ -191,8 +191,8 @@ export class TerminalWidgetImpl extends TerminalWidget implements StatefulWidget
             contribution.onCreate(this);
         }
 
-        this.terminalSeachBox = this.terminalSearchBoxFactory(this.term, this.node, this.id);
-        this.toDispose.push(this.terminalSeachBox);
+        this.searchBox = this.terminalSearchBoxFactory(this.term, this.node, this.id);
+        this.toDispose.push(this.searchBox);
     }
 
     showHoverMessage(x: number, y: number, message: string): void {
@@ -211,7 +211,7 @@ export class TerminalWidgetImpl extends TerminalWidget implements StatefulWidget
     }
 
     getSearchBox(): TerminalSearchBox {
-        return this.terminalSeachBox;
+        return this.searchBox;
     }
 
     get cwd(): Promise<URI> {

@@ -231,6 +231,7 @@ export class TerminalFrontendContribution implements TerminalService, CommandCon
             execute: () => {
                 const termWidget = (this.shell.activeWidget as TerminalWidget);
                 const terminalSearchBox = termWidget.getSearchBox();
+                terminalSearchBox.show();
                 terminalSearchBox.update();
                 terminalSearchBox.focus();
             }
@@ -241,7 +242,7 @@ export class TerminalFrontendContribution implements TerminalService, CommandCon
             execute: () => {
                 const termWidget = (this.shell.activeWidget as TerminalWidget);
                 const terminalSearchBox = termWidget.getSearchBox();
-                terminalSearchBox.hide(); // todo use dispose insted of hide...
+                terminalSearchBox.hide();
             }
         });
     }

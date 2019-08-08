@@ -18,6 +18,7 @@ export interface TerminalSearchBox {
     readonly isVisible: boolean;
     focus(): void;
     hide(): void;
+    show(): void;
     dispose(): void;
     update(): void;
 }
