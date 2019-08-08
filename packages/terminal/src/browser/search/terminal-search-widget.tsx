@@ -28,7 +28,7 @@ export const TerminalSearchWidgetFactory = Symbol('TerminalSearchWidgetFactory')
 export type TerminalSearchWidgetFactory = (terminal: Terminal, node: Element, terminalWdgId: string) => TerminalSearchWidget;
 
 export enum TerminalSearchOption {
-    CaseSensitiv = 'caseS ensitive',
+    CaseSensitiv = 'caseSensitive',
     WholeWord = 'wholeWord',
     RegExp = 'regex'
 }
@@ -46,10 +46,25 @@ export class TerminalSearchWidget extends ReactWidget implements TerminalSearchB
     @inject(Element)
     protected element: Element;
 
+    constructor() {
+        super();
+
+        this.node.classList.add('theia-search-terminal-widget-parent');
+
+        this.search = this.search.bind(this);
+        this.onSearchInputFocus = this.onSearchInputFocus.bind(this);
+        this.onSearchInputBlur = this.onSearchInputBlur.bind(this);
+        this.findPrevious = this.findPrevious.bind(this);
+        this.findNext = this.findNext.bind(this);
+        this.hide = this.hide.bind(this);
+        this.onCaseSensitiveOptionClicked = this.onCaseSensitiveOptionClicked.bind(this);
+        this.onWroleWordOptionClicked = this.onWroleWordOptionClicked.bind(this);
+        this.onRegexOptionClicked = this.onRegexOptionClicked.bind(this);
+    }
+
     @postConstruct()
     protected init(): void {
         this.element.appendChild(this.node);
-        this.node.classList.add('theia-search-terminal-widget-parent');
     }
 
     focus(): void {
@@ -66,17 +81,17 @@ export class TerminalSearchWidget extends ReactWidget implements TerminalSearchB
                     type='text'
                     placeholder='Find'
                     ref={ip => this.searchInput = ip}
-                    onKeyUp={event => this.search(event)}
-                    onFocus={() => this.onSearchInputFocus()}
-                    onBlur={() => this.onSearchInputBlur()}
+                    onKeyUp={this.search}
+                    onFocus={this.onSearchInputFocus}
+                    onBlur={this.onSearchInputBlur}
                 />
-                {this.renderSearchOption('search-elem match-case', TerminalSearchOption.CaseSensitiv, 'Match case')}
-                {this.renderSearchOption('search-elem whole-word', TerminalSearchOption.WholeWord, 'Match whole word')}
-                {this.renderSearchOption('search-elem use-regexp', TerminalSearchOption.RegExp, 'Use regular expression')}
+                <div title='Match case' tabIndex={0} className='search-elem match-case' onClick={this.onCaseSensitiveOptionClicked}></div>
+                <div title='Match whole word' tabIndex={0} className='search-elem whole-word' onClick={this.onWroleWordOptionClicked}></div>
+                <div title='Use regular expression' tabIndex={0} className='search-elem use-regexp' onClick={this.onRegexOptionClicked}></div>
             </div>
-            <button title='Previous match' className='search-elem' onClick={() => this.findPrevious()}>&#171;</button>
-            <button title='Next match' className='search-elem' onClick={() => this.findNext()}>&#187;</button>
-            <button title='Close' className='search-elem close' onClick={() => this.hide()}></button>
+            <button title='Previous match' className='search-elem' onClick={this.findPrevious}>&#171;</button>
+            <button title='Next match' className='search-elem' onClick={this.findNext}>&#187;</button>
+            <button title='Close' className='search-elem close' onClick={this.hide}></button>
        </div>;
     }
 
@@ -92,32 +107,26 @@ export class TerminalSearchWidget extends ReactWidget implements TerminalSearchB
         }
     }
 
-    protected renderSearchOption(style: string, optionName: string, title: string): React.ReactNode {
-        return <div title={title} tabIndex={0} className={style} onClick={event => this.onOptionClicked(event, optionName)}></div>;
+    private onCaseSensitiveOptionClicked(event: React.MouseEvent<HTMLSpanElement>): void {
+        this.searchOptions.caseSensitive = !this.searchOptions.caseSensitive;
+        this.updateSearchOption(this.searchOptions.caseSensitive, event.currentTarget);
     }
 
-    private onOptionClicked(event: React.MouseEvent<HTMLSpanElement>, optionName: string): void {
-        let enabled: boolean;
-        switch (optionName) {
-            case TerminalSearchOption.CaseSensitiv: {
-                this.searchOptions.caseSensitive = enabled = !this.searchOptions.caseSensitive;
-                break;
-            }
-            case TerminalSearchOption.WholeWord: {
-                this.searchOptions.wholeWord = enabled = !this.searchOptions.wholeWord;
-                break;
-            }
-            case TerminalSearchOption.RegExp: {
-                this.searchOptions.regex = enabled = !this.searchOptions.regex;
-                break;
-            }
-            default: throw new Error('Unknown search option!');
-        }
+    private onWroleWordOptionClicked(event: React.MouseEvent<HTMLSpanElement>): void {
+        this.searchOptions.wholeWord = !this.searchOptions.wholeWord;
+        this.updateSearchOption(this.searchOptions.wholeWord, event.currentTarget);
+    }
 
-        if (enabled) {
-            event.currentTarget.classList.add('option-enabled');
+    private onRegexOptionClicked(event: React.MouseEvent<HTMLSpanElement>): void {
+        this.searchOptions.regex = !this.searchOptions.regex;
+        this.updateSearchOption(this.searchOptions.regex, event.currentTarget);
+    }
+
+    private updateSearchOption(enable: boolean, optionElement: HTMLSpanElement): void {
+        if (enable) {
+            optionElement.classList.add('option-enabled');
         } else {
-            event.currentTarget.classList.remove('option-enabled');
+            optionElement.classList.remove('option-enabled');
         }
         this.searchInput!.focus();
         this.search();
@@ -132,10 +141,10 @@ export class TerminalSearchWidget extends ReactWidget implements TerminalSearchB
             this.findNext();
             return;
         }
-        this.findNext(true);
+        this.findNext(undefined, true);
     }
 
-    protected findNext(incremental?: boolean): void {
+    protected findNext(event?: React.MouseEvent, incremental?: boolean): void {
         if (this.searchInput) {
             const text = this.searchInput.value;
             findNext(this.terminal, text, { ...this.searchOptions, incremental });
@@ -149,7 +158,7 @@ export class TerminalSearchWidget extends ReactWidget implements TerminalSearchB
         }
     }
 
-    hide(): void {
+    hide(): void { // use dispose instead of hide
         super.hide();
         this.terminal.focus();
     }
