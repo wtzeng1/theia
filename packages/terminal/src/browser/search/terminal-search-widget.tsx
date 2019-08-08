@@ -26,7 +26,7 @@ import { Key } from '@theia/core/lib/browser';
 
 export const TERMINAL_SEARCH_WIDGET_FACTORY_ID = 'terminal-search';
 export const TerminalSearchWidgetFactory = Symbol('TerminalSearchWidgetFactory');
-export type TerminalSearchWidgetFactory = (terminal: Terminal, node: Element, terminalWdgId: string) => TerminalSearchWidget;
+export type TerminalSearchWidgetFactory = (terminal: Terminal, node: Element) => TerminalSearchWidget;
 
 @injectable()
 export class TerminalSearchWidget extends ReactWidget implements TerminalSearchBox {
@@ -115,7 +115,7 @@ export class TerminalSearchWidget extends ReactWidget implements TerminalSearchB
     }
 
     private onRegexOptionClicked(event: React.MouseEvent<HTMLSpanElement>): void {
-        this.searchOptions.regex= !this.searchOptions.regex;
+        this.searchOptions.regex = !this.searchOptions.regex;
         this.updateSearchInputBox(this.searchOptions.regex, event.currentTarget);
     }
 

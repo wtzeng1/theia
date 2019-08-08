@@ -65,20 +65,13 @@ export default new ContainerModule(bind => {
             child.bind(TerminalWidgetOptions).toConstantValue(widgetOptions);
             child.bind('terminal-dom-id').toConstantValue(domId);
 
-            child.bind(TerminalSearchWidgetFactory).toDynamicValue(context => (terminal: Terminal, node: Element, terminalWdgId: string) => {
-                if (context.container.isBoundNamed(TerminalSearchWidget, terminalWdgId)) {
-                    return context.container.getNamed(TerminalSearchWidget, terminalWdgId);
-                }
-
-                const container = new Container({ defaultScope: 'Singleton' });
+            child.bind(TerminalSearchWidgetFactory).toDynamicValue(ctx => (terminal: Terminal, node: Element) => {
+                const container = ctx.container;
                 container.bind(Terminal).toConstantValue(terminal);
                 container.bind(Element).toConstantValue(node);
                 container.bind(TerminalSearchWidget).toSelf().inSingletonScope();
 
-                const widget = container.get(TerminalSearchWidget);
-                context.container.bind(TerminalSearchWidget).toConstantValue(widget).whenTargetNamed(terminalWdgId);
-
-                return widget;
+                return container.get(TerminalSearchWidget);
             });
 
             return child.get(TerminalWidget);

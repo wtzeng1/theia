@@ -191,7 +191,7 @@ export class TerminalWidgetImpl extends TerminalWidget implements StatefulWidget
             contribution.onCreate(this);
         }
 
-        this.searchBox = this.terminalSearchBoxFactory(this.term, this.node, this.id);
+        this.searchBox = this.terminalSearchBoxFactory(this.term, this.node);
         this.toDispose.push(this.searchBox);
     }
 
