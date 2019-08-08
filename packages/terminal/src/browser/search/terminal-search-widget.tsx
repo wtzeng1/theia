@@ -14,7 +14,7 @@
  * SPDX-License-Identifier: EPL-2.0 OR GPL-2.0 WITH Classpath-exception-2.0
  ********************************************************************************/
 
-import { injectable, inject, postConstruct } from 'inversify';
+import { injectable, inject } from 'inversify';
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget';
 import * as React from 'react';
 import '../../../src/browser/style/terminal-search.css';
@@ -26,7 +26,7 @@ import { Key } from '@theia/core/lib/browser';
 
 export const TERMINAL_SEARCH_WIDGET_FACTORY_ID = 'terminal-search';
 export const TerminalSearchWidgetFactory = Symbol('TerminalSearchWidgetFactory');
-export type TerminalSearchWidgetFactory = (terminal: Terminal, node: Element) => TerminalSearchWidget;
+export type TerminalSearchWidgetFactory = (terminal: Terminal) => TerminalSearchWidget;
 
 @injectable()
 export class TerminalSearchWidget extends ReactWidget implements TerminalSearchBox {
@@ -37,9 +37,6 @@ export class TerminalSearchWidget extends ReactWidget implements TerminalSearchB
 
     @inject(Terminal)
     protected terminal: Terminal;
-
-    @inject(Element)
-    protected element: Element;
 
     constructor() {
         super();
@@ -59,9 +56,8 @@ export class TerminalSearchWidget extends ReactWidget implements TerminalSearchB
         this.onRegexOptionClicked = this.onRegexOptionClicked.bind(this);
     }
 
-    @postConstruct()
-    protected init(): void {
-        this.element.appendChild(this.node);
+    attach(parentElement: Element): void {
+        parentElement.appendChild(this.node);
     }
 
     focus(): void {

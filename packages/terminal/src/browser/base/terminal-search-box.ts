@@ -21,4 +21,5 @@ export interface TerminalSearchBox {
     show(): void;
     dispose(): void;
     update(): void;
+    attach(parentElement: Element): void;
 }

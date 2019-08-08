@@ -65,10 +65,9 @@ export default new ContainerModule(bind => {
             child.bind(TerminalWidgetOptions).toConstantValue(widgetOptions);
             child.bind('terminal-dom-id').toConstantValue(domId);
 
-            child.bind(TerminalSearchWidgetFactory).toDynamicValue(ctx => (terminal: Terminal, node: Element) => {
+            child.bind(TerminalSearchWidgetFactory).toDynamicValue(ctx => (terminal: Terminal) => {
                 const container = ctx.container;
                 container.bind(Terminal).toConstantValue(terminal);
-                container.bind(Element).toConstantValue(node);
                 container.bind(TerminalSearchWidget).toSelf().inSingletonScope();
 
                 return container.get(TerminalSearchWidget);
