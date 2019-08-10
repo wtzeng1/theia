@@ -33,9 +33,9 @@ import { URLMatcher, LocalhostMatcher } from './terminal-linkmatcher';
 import { TerminalContribution } from './terminal-contribution';
 import { TerminalLinkmatcherFiles } from './terminal-linkmatcher-files';
 import { TerminalLinkmatcherDiffPre, TerminalLinkmatcherDiffPost } from './terminal-linkmatcher-diff';
-import { TerminalSearchWidgetFactory, TerminalSearchWidget } from './search/terminal-search-widget';
-import { Terminal } from 'xterm';
+import { TerminalSearchWidgetFactory } from './search/terminal-search-widget';
 import { TerminalQuickOpenService, TerminalQuickOpenContribution } from './terminal-quick-open-service';
+import { createTerminalSearchFactory } from './search/terminal-search-container';
 
 import '../../src/browser/style/terminal.css';
 import 'xterm/lib/xterm.css';
@@ -65,13 +65,7 @@ export default new ContainerModule(bind => {
             child.bind(TerminalWidgetOptions).toConstantValue(widgetOptions);
             child.bind('terminal-dom-id').toConstantValue(domId);
 
-            child.bind(TerminalSearchWidgetFactory).toDynamicValue(ctx => (terminal: Terminal) => {
-                const container = ctx.container;
-                container.bind(Terminal).toConstantValue(terminal);
-                container.bind(TerminalSearchWidget).toSelf().inSingletonScope();
-
-                return container.get(TerminalSearchWidget);
-            });
+            child.bind(TerminalSearchWidgetFactory).toDynamicValue(context => createTerminalSearchFactory(context.container));
 
             return child.get(TerminalWidget);
         }

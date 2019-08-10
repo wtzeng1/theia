@@ -14,11 +14,15 @@
  * SPDX-License-Identifier: EPL-2.0 OR GPL-2.0 WITH Classpath-exception-2.0
  ********************************************************************************/
 
-export const TerminalSearchBox = Symbol('TerminalSearchBox');
-export interface TerminalSearchBox {
-    isDisplayed(): boolean;
-    hide(): void;
-    show(): void;
-    dispose(): void;
-    attach(parentElement: Element): void;
+import { interfaces } from 'inversify';
+import { TerminalSearchWidget, TerminalSearchWidgetFactory } from './terminal-search-widget';
+import { Terminal } from 'xterm';
+
+export function createTerminalSearchFactory(container: interfaces.Container): TerminalSearchWidgetFactory {
+    container.bind(TerminalSearchWidget).toSelf().inSingletonScope();
+
+    return (terminal: Terminal) => {
+        container.bind(Terminal).toConstantValue(terminal);
+        return container.get(TerminalSearchWidget);
+    };
 }

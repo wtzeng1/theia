@@ -84,6 +84,7 @@
     width: 100px;
     border: 0px solid transparent;
     height: 18px;
+    outline: none;
 }
 
 .search-terminal-widget button {

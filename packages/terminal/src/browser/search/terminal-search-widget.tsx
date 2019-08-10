@@ -14,7 +14,7 @@
  * SPDX-License-Identifier: EPL-2.0 OR GPL-2.0 WITH Classpath-exception-2.0
  ********************************************************************************/
 
-import { injectable, inject } from 'inversify';
+import { injectable, inject, postConstruct } from 'inversify';
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget';
 import * as React from 'react';
 import '../../../src/browser/style/terminal-search.css';
@@ -38,9 +38,8 @@ export class TerminalSearchWidget extends ReactWidget implements TerminalSearchB
     @inject(Terminal)
     protected terminal: Terminal;
 
-    constructor() {
-        super();
-
+    @postConstruct()
+    protected init(): void {
         this.node.classList.add('theia-search-terminal-widget-parent');
 
         this.onInputChanged = this.onInputChanged.bind(this);
@@ -54,6 +53,9 @@ export class TerminalSearchWidget extends ReactWidget implements TerminalSearchB
         this.onCaseSensitiveOptionClicked = this.onCaseSensitiveOptionClicked.bind(this);
         this.onWroleWordOptionClicked = this.onWroleWordOptionClicked.bind(this);
         this.onRegexOptionClicked = this.onRegexOptionClicked.bind(this);
+
+        this.hide();
+        this.update();
     }
 
     attach(parentElement: Element): void {
@@ -172,5 +174,9 @@ export class TerminalSearchWidget extends ReactWidget implements TerminalSearchB
         if (this.searchInput) {
             this.searchInput.select();
         }
+    }
+
+    isDisplayed(): boolean {
+        return this.node.clientWidth > 0;
     }
 }

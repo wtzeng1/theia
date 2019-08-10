@@ -47,6 +47,6 @@ export class TerminalHideSearchContext implements KeybindingContext {
             return false;
         }
         const searchWidget = (this.shell.activeWidget as TerminalWidget).getSearchBox();
-        return searchWidget.isVisible;
+        return searchWidget.isDisplayed();
     }
 }

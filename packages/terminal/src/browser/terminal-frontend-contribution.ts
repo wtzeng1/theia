@@ -232,8 +232,6 @@ export class TerminalFrontendContribution implements TerminalService, CommandCon
                 const termWidget = (this.shell.activeWidget as TerminalWidget);
                 const terminalSearchBox = termWidget.getSearchBox();
                 terminalSearchBox.show();
-                terminalSearchBox.update();
-                terminalSearchBox.focus();
             }
         });
         commands.registerCommand(TerminalCommands.TERMINAL_FIND_TEXT_CANCEL);
