@@ -55,6 +55,7 @@ export class QuickOpenTask implements QuickOpenModel, QuickOpenHandler {
 
     /** Initialize this quick open model with the tasks. */
     async init(): Promise<void> {
+        console.log('============== TEST task changes === init ==============');
         const recentTasks = this.taskService.recentTasks;
         const configuredTasks = await this.taskService.getConfiguredTasks();
         const providedTasks = await this.taskService.getProvidedTasks();
@@ -108,6 +109,7 @@ export class QuickOpenTask implements QuickOpenModel, QuickOpenHandler {
     }
 
     async open(): Promise<void> {
+        console.log('============== TEST task changes === open ==============');
         await this.init();
         this.quickOpenService.open(this, {
             placeholder: 'Select the task to run',

@@ -109,6 +109,27 @@ export class TasksExtImpl implements TasksExt {
         return this.createDisposable(callId);
     }
 
+    async fetchTasks(filter?: theia.TaskFilter): Promise<theia.Task[]> {
+        const taskVersion = filter ? filter.version : undefined;
+        const taskType = filter ? filter.type : undefined;
+        const taskDtos = await this.proxy.$fetchTasks(taskVersion, taskType);
+        return taskDtos.map(dto => converter.toTask(dto));
+    }
+
+    async executeTask(task: theia.Task): Promise<theia.TaskExecution> {
+        const taskDto = converter.fromTask(task);
+        let reason = 'Task was not successfully transformed into a task config';
+        if (taskDto) {
+            const executionDto = await this.proxy.$executeTask(taskDto);
+            reason = 'Run task config does not return after being started';
+            if (executionDto) {
+                const taskExecution = this.getTaskExecution(executionDto);
+                return taskExecution;
+            }
+        }
+        throw new Error(reason);
+    }
+
     $provideTasks(handle: number, token?: theia.CancellationToken): Promise<TaskDto[] | undefined> {
         const adapter = this.adaptersMap.get(handle);
         if (adapter) {

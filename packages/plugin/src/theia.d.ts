@@ -8202,6 +8202,19 @@ declare module '@theia/plugin' {
         exitCode: number;
     }
 
+    export interface TaskFilter {
+		/**
+		 * The task version as used in the tasks.json file.
+		 * The string support the package.json semver notation.
+		 */
+        version?: string;
+
+        /**
+         * The type of tasks to return.
+         */
+        type?: string;
+    }
+
     export namespace tasks {
 
         /**
@@ -8212,6 +8225,23 @@ declare module '@theia/plugin' {
          * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
          */
         export function registerTaskProvider(type: string, provider: TaskProvider): Disposable;
+
+        /**
+         * Fetches all tasks available in the systems. This includes tasks
+         * from `tasks.json` files as well as tasks from task providers
+         * contributed through extensions and plugins.
+         *
+         * @param filter a filter to filter the return tasks.
+         */
+        export function fetchTasks(filter?: TaskFilter): Thenable<Task[]>;
+
+        /**
+		 * Executes a task that is managed by VS Code. The returned
+		 * task execution can be used to terminate the task.
+		 *
+		 * @param task the task to execute
+		 */
+        export function executeTask(task: Task): Thenable<TaskExecution>;
 
         /**
          * The currently active task executions or an empty array.
@@ -8330,17 +8360,17 @@ declare module '@theia/plugin' {
 	/**
 	 * Comment mode of a [comment](#Comment)
 	 */
-	export enum CommentMode {
+    export enum CommentMode {
 		/**
 		 * Displays the comment editor
 		 */
-		Editing = 0,
+        Editing = 0,
 
 		/**
 		 * Displays the preview of the comment
 		 */
-		Preview = 1
-	}
+        Preview = 1
+    }
 
     /**
      * A collection of [comments](#Comment) representing a conversation at a particular range in a document.
@@ -8534,42 +8564,42 @@ declare module '@theia/plugin' {
 	/**
 	 * Author information of a [comment](#Comment)
 	 */
-	export interface CommentAuthorInformation {
+    export interface CommentAuthorInformation {
 		/**
 		 * The display name of the author of the comment
 		 */
-		name: string;
+        name: string;
 
 		/**
 		 * The optional icon path for the author
 		 */
-		iconPath?: Uri;
-	}
+        iconPath?: Uri;
+    }
 
 	/**
 	 * Reactions of a [comment](#Comment)
 	 */
-	export interface CommentReaction {
+    export interface CommentReaction {
 		/**
 		 * The human-readable label for the reaction
 		 */
-		readonly label: string;
+        readonly label: string;
 
 		/**
 		 * Icon for the reaction shown in UI.
 		 */
-		readonly iconPath: string | Uri;
+        readonly iconPath: string | Uri;
 
 		/**
 		 * The number of users who have reacted to this reaction
 		 */
-		readonly count: number;
+        readonly count: number;
 
 		/**
 		 * Whether the [author](CommentAuthorInformation) of the comment has reacted to this reaction
 		 */
-		readonly authorHasReacted: boolean;
-	}
+        readonly authorHasReacted: boolean;
+    }
 
     /**
      * A comment is displayed within the editor or the Comments Panel, depending on how it is provided.
