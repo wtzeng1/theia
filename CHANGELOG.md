@@ -9,6 +9,7 @@ Breaking changes:
 
 - [core][plugin] support alternative commands in context menus [6069](https://github.com/eclipse-theia/theia/pull/6069)
 - [workspace] switched `workspace.supportMultiRootWorkspace` to enabled by default [#6089](https://github.com/eclipse-theia/theia/pull/6089)
+- [task] removed `TaskConfigurations.watcherServer`, `TaskConfigurations.fileSystem`, `TaskConfigurations.configFileUris`, `TaskConfigurations.watchConfigurationFile()` and `TaskConfigurations.unwatchConfigurationFile()` [?](https://github.com/theia-ide/theia/pull/?)
 
 Misc:
 
