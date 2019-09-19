@@ -175,7 +175,7 @@ export class CommandsConverter {
             const id = this.handle++;
             this.commandsMap.set(id, command);
             disposables.push(new Disposable(() => this.commandsMap.delete(id)));
-            result.id = this.safeCommandId;
+            result.command = this.safeCommandId;
             result.arguments = [id];
         }
 

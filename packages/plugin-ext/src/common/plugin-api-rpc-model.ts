@@ -153,7 +153,11 @@ export interface SingleEditOperation {
 }
 
 export interface Command {
+    /**
+     * @deprecated use command instead
+     */
     id: string;
+    command?: string;
     title: string;
     tooltip?: string;
     // tslint:disable-next-line:no-any
